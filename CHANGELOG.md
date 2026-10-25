@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.2.8 (2026-10-26)
+
+HavenOS fork, reliability pass:
+
+- Wait for the PVR manager to report the client stopped before re-enabling IPTV
+  Simple; postpone the restart while TV, radio, video or a recording is in
+  progress, even when the restart is forced.
+- Check 30 seconds after a restart that IPTV Simple came back, and retry
+  otherwise.
+- Read and write numeric settings through the typed API, with a legacy fallback;
+  `last_refreshed` is declared as an integer. This fixes
+  `EXCEPTION: Invalid setting type` on Kodi 22, which stopped the service.
+- Keep the background service alive when a pass raises.
+- Decode provider payloads with an incremental UTF-8 decoder, and bound the
+  read (120 s, 64 MiB).
+- Stream raw XMLTV instead of copying it; an invalid payload is logged and
+  skipped instead of breaking the refresh.
+- Target Kodi 21/22 only (`xbmc.python 3.0.0`), run CI on Python 3.11/3.12, and
+  stop submitting releases to the official Kodi repository.
+- 52 unit tests, `pylint` clean, 80 % coverage.
+
 ## v0.2.7 (2026-10-25)
 
 - Configure PVR IPTV Simple automatically on first run when it does not point
