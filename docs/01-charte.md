@@ -18,7 +18,7 @@ Ce n'est pas un fork de fonctionnalités.
 | `id` | `service.iptv.manager` | Conservé : les addons fournisseurs et la configuration existante le référencent. |
 | `name` | `IPTV Manager` | Conservé. |
 | Licence | `GPL-3.0-only` | Conservée, avec attribution des auteurs d'origine. |
-| Version | `0.2.7` | Schéma `0.2.x` ; l'amont s'arrête à `0.2.5+matrix.1`, donc toute version `0.2.6` ou supérieure est prioritaire pour Kodi. |
+| Version | `0.2.8` | Schéma `0.2.x` ; l'amont s'arrête à `0.2.5+matrix.1`, donc toute version `0.2.6` ou supérieure est prioritaire pour Kodi. |
 | Branche de référence | `master` | Seule branche maintenue. |
 
 ## 3. Cibles techniques

@@ -18,7 +18,10 @@ Livré dans cette passe, tests verts (42) et pylint propre :
 - `7505b0e` — fichiers de développement hors du zip de release ;
 - `33520e2` — diagnostic Kodi 22 (`07`), décision `tv_common` (`06`), fiche F-11 ;
 - `8ed7430` — réglages typés, `last_refreshed` déclaré entier (F-11) ;
-- `e5ca547` — boucle du service qui survit à une passe en échec (F-11).
+- `e5ca547` — boucle du service qui survit à une passe en échec (F-11) ;
+- `c19900d` — release 0.2.8 : version, `news`, `CHANGELOG` ;
+- `d7bbdc8` — écriture refusée sur une passe dégradée (F-02) ;
+- `e4f0e39` — reprise avec backoff après une passe incomplète (F-03).
 
 Deux constats du même soir ont ajouté deux documents :
 
@@ -26,10 +29,10 @@ Deux constats du même soir ont ajouté deux documents :
 - `07-incident-kodi22-service.md` — diagnostic de l'arrêt du service sur Kodi 22,
   qui devient le correctif `F-11`.
 
-`F-11` est livré. Prochaine étape : préparer la release 0.2.8 (version,
-`news`, `CHANGELOG`), la vérifier sur une box Kodi 22, puis attaquer `F-02` et
-`F-03` ensemble (0.2.9) et `F-04` (0.2.10). Les raisons de cet ordre sont en
-`04-roadmap.md` §1.
+`F-11`, `F-02` et `F-03` sont livrés. La 0.2.8 est construite et taguée
+localement, pas publiée. Prochaine étape : la vérifier sur une box Kodi 22
+(`07-incident-kodi22-service.md` §6), puis livrer `F-04` en 0.2.9. Les raisons de
+cet ordre sont en `04-roadmap.md` §1.
 
 ## Tableau de synthèse
 
@@ -40,8 +43,8 @@ Deux constats du même soir ont ajouté deux documents :
 | F-06 | P1 | **Corrigé** (`1c9ce2e`) | 0.2.8 |
 | F-09 | P1 | **Corrigé** (`b13b47d`) — tags `v0.2.6`/`v0.2.7` créés localement, à pousser | 0.2.8 |
 | F-11 | P0 | **Corrigé** (`8ed7430`, `e5ca547`) — vérification sur box Kodi 22 à faire | 0.2.8 |
-| F-02 | P0 | Non commencé (`os.replace` seul est fait) | 0.2.9 |
-| F-03 | P0 | Non commencé | 0.2.9 |
+| F-02 | P0 | **Corrigé** (`d7bbdc8`) — vérification sur box à faire | 0.2.8 |
+| F-03 | P0 | **Corrigé** (`e4f0e39`) — vérification sur box à faire | 0.2.8 |
 | F-04 | P0/P1 | Partiel : auto-setup sans relecture, instances écrasées | 0.2.10 |
 | F-07 | P1 | Non commencé | 0.3.0 |
 | F-08 | P1 | Non commencé | 0.3.0 |
@@ -142,9 +145,17 @@ remplacement atomique, mais n'empêche pas d'écrire un contenu partiel.
 (md5 identiques), `state.json` en `partial`, reprise automatique ensuite. Aucun
 utilisateur ne perd ses chaînes à cause d'une passe ratée.
 
-**Risque.** Un fournisseur légitimement vidé (chaînes retirées) reste bloqué en
-« dégradé ». Prévoir une sortie : trois échecs consécutifs acceptent la baisse,
-ou une action explicite « forcer l'écriture ».
+**Fichier d'état.** `providers_state.json`, dans le profil de l'addon :
+`{"<addon_id>": {"channels": n, "programs": n, "failures": n}, "_meta":
+{"last_attempt": ts, "failures": n, "retry_after": ts}}`. Écriture atomique
+(`.tmp` puis `os.replace`). Un fichier absent ou corrompu équivaut à un premier
+démarrage. Les compteurs de programmes d'un XMLTV brut sont pris par
+`RawXmltv.count()`, sans matérialiser le document.
+
+**Risque.** Un fournisseur légitimement vidé (chaînes retirées) reste bloqué
+en « dégradé ». Sortie : trois échecs consécutifs acceptent la baisse (le
+compteur retombe à zéro), et une passe sans aucune donnée n'écrit jamais une
+playlist vide.
 
 ---
 
