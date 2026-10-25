@@ -1,5 +1,11 @@
 # 04 — Roadmap, releases et déploiement
 
+## 0. État au 25/10/2026 (soir)
+
+Lot 0 livré (`b13b47d`). Trois correctifs du lot 1 livrés en avance : F-01 (`e45e2d7`),
+F-05 (`5938c20`), F-06 (`1c9ce2e`). Restent F-02, F-03 et F-04 avant la 0.2.8, puis la
+vérification sur box et la mise à jour du pin HavenOS.
+
 ## 1. Vue d'ensemble
 
 | Lot | Version | Contenu | Critère de sortie |

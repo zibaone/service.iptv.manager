@@ -12,7 +12,9 @@ Il ne documente pas l'amont : pour le fonctionnement général de l'addon, voir 
     remplacement atomique de `playlist.m3u8` / `epg.xml` ;
   - `6ebd19c` — shell de test Nix reproductible (`flake.nix`) ;
   - `d107225` — configuration automatique d'IPTV Simple au premier démarrage.
-- Tests : `nix develop --command pytest -q tests` → **4 passés** (22 s) le 25/10/2026.
+  - puis la passe du 25/10 : `efff4c7` (docs), `b13b47d` (cibles Kodi 21/22), `e45e2d7` (restart sûr),
+    `5938c20` (socket), `1c9ce2e` (XMLTV en flux). Voir `02-correctifs.md`.
+- Tests : `nix develop --command pytest -q tests` → **24 passés** (10 s) le 25/10/2026, après la passe de correctifs.
 - Aucun tag depuis `v0.2.4` : les versions 0.2.6 et 0.2.7 ne sont pas taguées.
 
 ## Plan de lecture

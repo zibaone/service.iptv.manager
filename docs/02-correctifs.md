@@ -1,23 +1,35 @@
 # 02 — Backlog des correctifs
 
-Les numéros de ligne cités correspondent à `master` = `d107225d` (version 0.2.7).
+Les numéros de ligne cités correspondent à `d107225d` (version 0.2.7), l'état d'avant la passe du 25/10/2026 ; les fichiers touchés depuis ont bougé.
 Chaque fiche suit le même plan : symptôme, cause, emplacement, correctif, tests,
 critère d'acceptation, risque. Le statut indique ce qui est déjà fait dans le
 fork.
+
+## État après la passe du 25/10/2026
+
+Livré dans cette passe, tests verts (24) et pylint propre :
+
+- `efff4c7` — documentation du fork ;
+- `b13b47d` — cibles Kodi 21/22, CI, release sans soumission officielle (F-09) ;
+- `e45e2d7` — restart sûr, `setup()` protégé, vérification différée (F-01) ;
+- `5938c20` — décodage incrémental et lecture bornée (F-05) ;
+- `1c9ce2e` — XMLTV brut en flux (F-06).
+
+Restent avant la 0.2.8 : F-02, F-03 et F-04, puis la vérification sur box.
 
 ## Tableau de synthèse
 
 | ID | Priorité | Statut au 25/10/2026 | Version cible |
 |---|---|---|---|
-| F-01 | P0 | Partiel : attente fixe de 8 s, garde de lecture incomplète, `setup()` non protégé | 0.2.8 |
+| F-01 | P0 | **Corrigé** (`e45e2d7`) — vérification sur box à faire | 0.2.8 |
 | F-02 | P0 | Non commencé (`os.replace` seul est fait) | 0.2.8 |
 | F-03 | P0 | Non commencé | 0.2.8 |
 | F-04 | P0/P1 | Partiel : auto-setup sans relecture, instances écrasées | 0.2.8 |
-| F-05 | P1 | Partiel : timeout 30 s + un retry, décodage non incrémental | 0.2.9 |
-| F-06 | P1 | Non commencé | 0.2.9 |
+| F-05 | P1 | **Corrigé** (`5938c20`) | 0.2.9 |
+| F-06 | P1 | **Corrigé** (`1c9ce2e`) | 0.2.9 |
 | F-07 | P1 | Non commencé | 0.2.9 |
 | F-08 | P1 | Non commencé | 0.2.9 |
-| F-09 | P1 | Non commencé | 0.2.8 (a) / 0.2.9 (b) |
+| F-09 | P1 | **Corrigé** (`b13b47d`) — tags `v0.2.6`/`v0.2.7` créés localement, à pousser | 0.2.8 (a) / 0.2.9 (b) |
 | F-10 | P2 | Non commencé | 0.3.0 |
 
 ---
