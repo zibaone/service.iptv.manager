@@ -22,7 +22,9 @@ Livré dans cette passe, tests verts (42) et pylint propre :
 - `c19900d` — release 0.2.8 : version, `news`, `CHANGELOG` ;
 - `d7bbdc8` — écriture refusée sur une passe dégradée (F-02) ;
 - `e4f0e39` — reprise avec backoff après une passe incomplète (F-03) ;
-- `9c67c48` — setup vérifié, instances préservées (F-04).
+- `9c67c48` — setup vérifié, instances préservées (F-04) ;
+- `266512e` — release 0.2.9 (branche `release/0.2.9`, depuis `d050d2f`) ;
+- `579c300` — release 0.2.10 (sur `master`).
 
 Deux constats du même soir ont ajouté deux documents :
 
@@ -47,9 +49,9 @@ raisons de cet ordre sont en `04-roadmap.md` §1.
 | F-06 | P1 | **Corrigé** (`1c9ce2e`) | 0.2.8 |
 | F-09 | P1 | **Corrigé** (`b13b47d`) — tags `v0.2.6`/`v0.2.7` créés localement, à pousser | 0.2.8 |
 | F-11 | P0 | **Corrigé** (`8ed7430`, `e5ca547`) — vérification sur box Kodi 22 à faire | 0.2.8 |
-| F-02 | P0 | **Corrigé** (`d7bbdc8`) — dans `master`, à publier en 0.2.9 | 0.2.9 |
-| F-03 | P0 | **Corrigé** (`e4f0e39`) — dans `master`, à publier en 0.2.9 | 0.2.9 |
-| F-04 | P0/P1 | **Corrigé** (`9c67c48`) — dans `master`, à publier en 0.2.10 | 0.2.10 |
+| F-02 | P0 | **Corrigé** (`d7bbdc8`), publié en 0.2.9 | 0.2.9 |
+| F-03 | P0 | **Corrigé** (`e4f0e39`), publié en 0.2.9 | 0.2.9 |
+| F-04 | P0/P1 | **Corrigé** (`9c67c48`), publié en 0.2.10 | 0.2.10 |
 | F-07 | P1 | Non commencé | 0.3.0 |
 | F-08 | P1 | Non commencé | 0.3.0 |
 | F-10 | P2 | Non commencé | 0.3.0 |

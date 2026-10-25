@@ -2,12 +2,13 @@
 
 ## 0. État au 25/10/2026 (soir)
 
-Dix-huit commits au-dessus de `d107225` : documentation (`efff4c7`, `70057c6`,
+Vingt commits au-dessus de `d107225` : documentation (`efff4c7`, `70057c6`,
 `569e401`, `33520e2`, `76170c5`, `6bd5d5a`, `d050d2f`), cibles Kodi 21/22
 (`b13b47d`), F-01 (`e45e2d7`), F-05 (`5938c20`), F-06 (`1c9ce2e`), zip sans
 fichiers de développement (`7505b0e`), F-11 (`8ed7430`, `e5ca547`), release 0.2.8
-(`c19900d`), F-02 (`d7bbdc8`), F-03 (`e4f0e39`), F-04 (`9c67c48`). 72 tests
-verts, `pylint` 10/10, couverture 82 %.
+(`c19900d`), F-02 (`d7bbdc8`), F-03 (`e4f0e39`), F-04 (`9c67c48`), releases
+0.2.9 (`266512e`) et 0.2.10 (`579c300`). 72 tests verts, `pylint` 10/10,
+couverture 82 %.
 
 Le même soir, deux constats ont changé le plan :
 
@@ -23,9 +24,12 @@ que la vérification sur box désigne un seul coupable.
 La 0.2.8 est construite : version et `news` dans `addon.xml`, section datée du
 `CHANGELOG`, zip relu (43 fichiers, version 0.2.8, sans `tests/`, `docs/`,
 `flake.nix` ni `.github/`), tag `v0.2.8` créé localement. Rien n'est poussé ni
-publié. `F-02`, `F-03` et `F-04` sont livrés dans `master` ; les releases 0.2.9
-et 0.2.10 restent à construire, après la vérification de la 0.2.8 sur une box
-Kodi 22 avec le protocole de `07-incident-kodi22-service.md` §6.
+publié. Les trois releases sont construites : la 0.2.9 depuis `d050d2f` plus un
+commit de release (branche `release/0.2.9`, pour n'emporter que `F-02`/`F-03`),
+la 0.2.10 depuis `master` (`F-04` en plus). Leurs zips sont déposés dans le
+dépôt d'artefacts `zibaone/tv-addons-repo`, sous `service.iptv.manager/`. Il
+reste la vérification sur une box Kodi 22 avec le protocole de
+`07-incident-kodi22-service.md` §6.
 
 ## 1. Vue d'ensemble
 

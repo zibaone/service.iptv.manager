@@ -6,7 +6,7 @@ Il ne documente pas l'amont : pour le fonctionnement général de l'addon, voir 
 
 ## État au 25/10/2026
 
-- Branche `master` : version **0.2.8**, dix-huit commits au-dessus du pin `d107225`.
+- Branche `master` : version **0.2.10**, vingt commits au-dessus du pin `d107225`.
 - Base amont `382c90d` (« Remove python 2.7 / Leia support »), puis trois commits
   du fork (`a1bbc8d` restart et timeout, `6ebd19c` shell Nix, `d107225` auto-setup),
   puis la passe du 25/10 : `efff4c7` (docs), `b13b47d` (cibles Kodi 21/22),
@@ -15,16 +15,16 @@ Il ne documente pas l'amont : pour le fonctionnement général de l'addon, voir 
   `33520e2` (diagnostic Kodi 22 et décision `tv_common`), `8ed7430` et `e5ca547`
   (réglages typés et service résilient, F-11), `c19900d` (release 0.2.8),
   `d7bbdc8` (écriture anti-régression, F-02), `e4f0e39` (reprise avec backoff,
-  F-03), `9c67c48` (setup vérifié et instances préservées, F-04).
+  F-03), `9c67c48` (setup vérifié et instances préservées, F-04), `266512e`
+  (release 0.2.9) et `579c300` (release 0.2.10).
 - Tests : `nix develop --command pytest -q tests` → **72 passés** (8 s), couverture 82 %.
 - `F-11`, `F-02`, `F-03` et `F-04` livrés dans `master` : plus d'arrêt du service
   sur Kodi 22, plus de playlist écrasée par une passe incomplète, reprise dans le
   quart d'heure, setup relu et instances préservées.
-- 0.2.8 (F-01, F-05, F-06, F-11) construite et taguée localement (`v0.2.8`), zip
-  relu ; **rien n'est poussé ni publié**. 0.2.9 (F-02, F-03) et 0.2.10 (F-04)
-  restent à construire.
-- Prochaine étape : vérifier la 0.2.8 sur une box Kodi 22, puis construire les
-  deux releases suivantes.
+- Trois zips construits depuis leurs tags et déposés dans `zibaone/tv-addons-repo`
+  (`service.iptv.manager/`) : 0.2.8 (F-01, F-05, F-06, F-11), 0.2.9 (F-02,
+  F-03) et 0.2.10 (F-04), cette dernière étant la version proposée aux boxes.
+- Prochaine étape : vérifier la 0.2.10 sur une box Kodi 22.
 
 ## Plan de lecture
 
