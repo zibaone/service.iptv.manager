@@ -6,9 +6,9 @@ from __future__ import absolute_import, division, unicode_literals
 import logging
 import os
 import time
+from xml.etree import ElementTree
 
 import glob
-import shutil
 
 import xbmcvfs
 
@@ -49,12 +49,21 @@ class IptvSimple:
         """Init"""
 
     @classmethod
-    def setup(cls):
-        """Setup IPTV Simple"""
-        try:
-            # Install IPTV Simple
-            kodiutils.execute_builtin('InstallAddon', IPTV_SIMPLE_ID)
+    def setup(cls, explicit=False):
+        """Setup IPTV Simple.
 
+        The automatic setup at startup only writes the playlist and guide
+        paths, so a user choice (catchup, cache, logo) survives. The explicit
+        setup, from the settings button, may write everything (docs/02, F-04).
+        """
+        addon = cls._get_addon()
+        if addon is None:
+            # Installing a PVR client at boot is out of scope: a box without
+            # IPTV Simple is left alone instead of raising (docs/02, F-04).
+            _LOGGER.warning('IPTV Simple is not installed; cannot configure it')
+            return False
+
+        try:
             # Activate IPTV Simple so we can get the addon to be able to configure it
             cls._activate()
             addon = kodiutils.get_addon(IPTV_SIMPLE_ID)
@@ -62,36 +71,47 @@ class IptvSimple:
             _LOGGER.warning('Could not setup IPTV Simple: %s', str(exc))
             return False
 
-        # Configure IPTV Simple
         output_dir = kodiutils.addon_profile()
+        paths = cls._paths(output_dir)
 
-        addon.setSetting('m3uPathType', '0')  # Local path
-        addon.setSetting('m3uPath', os.path.join(output_dir, IPTV_SIMPLE_PLAYLIST))
+        try:
+            for key, value in paths.items():
+                addon.setSetting(key, value)
 
-        addon.setSetting('epgPathType', '0')  # Local path
-        addon.setSetting('epgPath', os.path.join(output_dir, IPTV_SIMPLE_EPG))
-        addon.setSetting('epgCache', 'true')
-        addon.setSetting('epgTimeShift', '0')
+            if explicit:
+                addon.setSetting('epgCache', 'true')
+                addon.setSetting('epgTimeShift', '0')
 
-        addon.setSetting('logoPathType', '0')  # Local path
-        addon.setSetting('logoPath', '/')
+                addon.setSetting('logoPathType', '0')  # Local path
+                addon.setSetting('logoPath', '/')
 
-        addon.setSetting('catchupEnabled', 'true')
-        addon.setSetting('allChannelsCatchupMode', '1')
-        addon.setSetting('catchupOnlyOnFinishedProgrammes', 'false')
+                addon.setSetting('catchupEnabled', 'true')
+                addon.setSetting('allChannelsCatchupMode', '1')
+                addon.setSetting('catchupOnlyOnFinishedProgrammes', 'false')
+        except Exception as exc:  # pylint: disable=broad-except
+            # Kodi 22 raises on a setting whose type it refuses; configuring the
+            # PVR must never take the service down (docs/02, F-04 and F-11).
+            _LOGGER.warning('Could not write the IPTV Simple settings: %s', str(exc))
+            return False
 
-        # Apply the settings through the safe restart path: Kodi 22 needs the
-        # PVR manager to stop before IPTV Simple is re-enabled.
-        if not cls.restart(force=True):
-            _LOGGER.info('IPTV Simple is configured; its restart is postponed or pending')
+        # A write IPTV Simple did not keep is a failed setup: do not restart it
+        # against paths it does not use (docs/02, F-04).
+        if not cls._settings_kept(addon, paths):
+            return False
 
-        # If iptv simple uses another name than settings.xml for the configuration file then copy the generated settings.xml to that other name
-        path = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
-        settingsxml = path + 'settings.xml'
-        if os.path.isfile(settingsxml):
-            for file in glob.glob(path + "*.xml"):
-                if os.path.basename(file) != 'settings.xml':
-                    shutil.copyfile(settingsxml, file)
+        cls._configure_instances(addon, output_dir)
+
+        playlist = os.path.join(output_dir, IPTV_SIMPLE_PLAYLIST)
+        if os.path.isfile(playlist):
+            # Apply the settings through the safe restart path: Kodi 22 needs
+            # the PVR manager to stop before IPTV Simple is re-enabled.
+            if not cls.restart(force=True):
+                _LOGGER.info('IPTV Simple is configured; its restart is postponed or pending')
+        else:
+            # Nothing to load yet: the first refresh writes the playlist and
+            # restarts IPTV Simple itself.
+            cls.restart_required = True
+            _LOGGER.info('IPTV Simple is configured; its restart waits for the first playlist')
 
         return True
 
@@ -102,16 +122,127 @@ class IptvSimple:
             addon = kodiutils.get_addon(IPTV_SIMPLE_ID)
             output_dir = kodiutils.addon_profile()
 
-            return (
-                addon.getSetting('m3uPathType') == '0'
-                and addon.getSetting('m3uPath') == os.path.join(output_dir, IPTV_SIMPLE_PLAYLIST)
-                and addon.getSetting('epgPathType') == '0'
-                and addon.getSetting('epgPath') == os.path.join(output_dir, IPTV_SIMPLE_EPG)
-                and addon.getSetting('catchupEnabled') == 'true'
-            )
+            for key, value in cls._paths(output_dir).items():
+                kept = addon.getSetting(key)
+                if key.endswith('PathType'):
+                    if kept != value:
+                        return False
+                elif not cls._same_path(kept, value):
+                    return False
+            return True
         except Exception:  # pylint: disable=broad-except
             _LOGGER.debug('Could not read IPTV Simple settings', exc_info=True)
             return False
+
+    @staticmethod
+    def _get_addon():
+        """Return the IPTV Simple add-on, or None when it is not installed."""
+        try:
+            return kodiutils.get_addon(IPTV_SIMPLE_ID)
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.debug('IPTV Simple is not available', exc_info=True)
+            return None
+
+    @staticmethod
+    def _paths(output_dir):
+        """Return the settings that make IPTV Simple read our generated files."""
+        return {
+            'm3uPathType': '0',  # Local path
+            'm3uPath': os.path.join(output_dir, IPTV_SIMPLE_PLAYLIST),
+            'epgPathType': '0',  # Local path
+            'epgPath': os.path.join(output_dir, IPTV_SIMPLE_EPG),
+        }
+
+    @classmethod
+    def _settings_kept(cls, addon, paths):
+        """Read the settings back: a value Kodi refused is a failed setup."""
+        for key, value in paths.items():
+            try:
+                kept = addon.getSetting(key)
+            except Exception:  # pylint: disable=broad-except
+                _LOGGER.warning('Could not read back %s from IPTV Simple', key, exc_info=True)
+                return False
+
+            if key.endswith('PathType'):
+                matches = kept == value
+            else:
+                matches = cls._same_path(kept, value)
+
+            if not matches:
+                _LOGGER.warning('IPTV Simple did not keep %s (got %r, expected %r)', key, kept, value)
+                return False
+        return True
+
+    @staticmethod
+    def _same_path(left, right):
+        """Compare two paths, accepting special:// and translated forms."""
+        def normalize(value):
+            value = (value or '').strip().replace('\\', '/')
+            try:
+                value = xbmcvfs.translatePath(value)
+            except Exception:  # pylint: disable=broad-except
+                pass
+            return os.path.normpath(value)
+
+        return normalize(left) == normalize(right)
+
+    @classmethod
+    def _configure_instances(cls, addon, output_dir):
+        """Update the instances that already point at our playlist.
+
+        Kodi 20+ keeps one settings file per PVR instance. Only a file that
+        already references our playlist is touched, and only for the paths we
+        own: an instance the user configured keeps its own choices
+        (docs/02, F-04).
+        """
+        try:
+            profile_dir = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.debug('Could not read the IPTV Simple profile', exc_info=True)
+            return
+
+        instances = sorted(glob.glob(os.path.join(profile_dir, 'instance-settings*.xml')))
+        _LOGGER.info('IPTV Simple instance settings found: %s',
+                     ', '.join(os.path.basename(path) for path in instances) or 'none')
+
+        playlist = os.path.join(output_dir, IPTV_SIMPLE_PLAYLIST)
+        for path in instances:
+            try:
+                with open(path, 'r', encoding='utf-8') as fdesc:
+                    if playlist not in fdesc.read():
+                        continue
+                if cls._apply_instance_paths(path, output_dir):
+                    _LOGGER.info('Updated IPTV Simple instance %s', os.path.basename(path))
+            except Exception:  # pylint: disable=broad-except
+                _LOGGER.warning('Could not update IPTV Simple instance %s',
+                                os.path.basename(path), exc_info=True)
+
+    @classmethod
+    def _apply_instance_paths(cls, path, output_dir):
+        """Rewrite the path settings of one instance file, atomically."""
+        values = cls._paths(output_dir)
+        tree = ElementTree.parse(path)
+        root = tree.getroot()
+        existing = dict((element.get('id'), element) for element in root.findall('setting'))
+
+        changed = False
+        for key, value in values.items():
+            element = existing.get(key)
+            if element is None:
+                element = ElementTree.SubElement(root, 'setting', {'id': key})
+                changed = True
+            if (element.text or '') != value:
+                element.text = value
+                changed = True
+
+        if not changed:
+            return False
+
+        temp = path + '.tmp'
+        tree.write(temp, encoding='utf-8', xml_declaration=False)
+        os.replace(temp, path)
+        return True
+
 
     @classmethod
     def restart(cls, force=False):

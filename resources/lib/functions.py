@@ -17,7 +17,7 @@ def setup_iptv_simple():
     """Setup IPTV Simple"""
     reply = kodiutils.yesno_dialog(message=kodiutils.localize(30700))  # Are you sure...
     if reply:
-        if IptvSimple.setup():
+        if IptvSimple.setup(explicit=True):
             kodiutils.ok_dialog(message=kodiutils.localize(30701))  # The configuration of IPTV Simple is completed!
         else:
             kodiutils.ok_dialog(message=kodiutils.localize(30702))  # The configuration of IPTV Simple has failed!
