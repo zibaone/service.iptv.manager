@@ -16,11 +16,12 @@ Il ne documente pas l'amont : pour le fonctionnement général de l'addon, voir 
   (réglages typés et service résilient, F-11), `c19900d` (release 0.2.8),
   `d7bbdc8` (écriture anti-régression, F-02), `e4f0e39` (reprise avec backoff, F-03).
 - Tests : `nix develop --command pytest -q tests` → **65 passés** (10 s), couverture 82 %.
-- `F-11`, `F-02` et `F-03` livrés ; plus d'arrêt du service sur Kodi 22, plus de
-  playlist écrasée par une passe incomplète, reprise dans le quart d'heure.
-- 0.2.8 construite et taguée localement (`v0.2.8`), zip relu ; **rien n'est poussé
-  ni publié**.
-- Prochaine étape : vérification sur une box Kodi 22, puis `F-04` (0.2.9).
+- `F-11` livré : plus d'arrêt du service sur Kodi 22. `F-02` et `F-03` livrés
+  dans `master` (plus de playlist écrasée, reprise dans le quart d'heure) et
+  prévus pour la 0.2.9.
+- 0.2.8 (F-01, F-05, F-06, F-11) construite et taguée localement (`v0.2.8`), zip
+  relu ; **rien n'est poussé ni publié**.
+- Prochaine étape : vérifier la 0.2.8 sur une box Kodi 22, puis `F-04` (0.2.10).
 
 ## Plan de lecture
 

@@ -23,17 +23,18 @@ que la vérification sur box désigne un seul coupable.
 La 0.2.8 est construite : version et `news` dans `addon.xml`, section datée du
 `CHANGELOG`, zip relu (43 fichiers, version 0.2.8, sans `tests/`, `docs/`,
 `flake.nix` ni `.github/`), tag `v0.2.8` créé localement. Rien n'est poussé ni
-publié. Il reste la vérification sur une box Kodi 22 avec le protocole de
-`07-incident-kodi22-service.md` §6, puis `F-04` pour la 0.2.9.
+publié. `F-02` et `F-03` sont livrés dans `master` et partiront en 0.2.9, après
+la vérification de la 0.2.8 sur une box Kodi 22 avec le protocole de
+`07-incident-kodi22-service.md` §6.
 
 ## 1. Vue d'ensemble
 
 | Lot | Version | Contenu | Critère de sortie |
 |---|---|---|---|
 | **0** | `0.2.7` | Documentation, assainissement du dépôt, tags | **Fait** : `addon.xml` installable tel quel, CI qui ne soumet plus au dépôt officiel, tags `v0.2.6` et `v0.2.7` créés. |
-| **1a** | `0.2.8` | **Fait** — `F-01`, `F-05`, `F-06`, `F-11` réglages typés et service résilient, `F-02` écriture anti-régression, `F-03` reprise avec backoff | Sur une box Kodi 22 : aucune occurrence de `Invalid setting type`, `last_refreshed` écrit, service toujours actif au tour suivant, PVR `Started`. |
-| **1b** | `0.2.8` | **Fait avec 1a** : `F-02` et `F-03` partagent le même fichier d'état et la même fonction `refresh()` | Fournisseur coupé : `playlist.m3u8` et `epg.xml` inchangés (md5 identiques), retry dans le quart d'heure, reprise normale ensuite. |
-| **1c** | `0.2.9` | `F-04` setup vérifié | Installation neuve : chaînes présentes ; installation déjà configurée : aucun réglage ni aucune instance écrasés. |
+| **1a** | `0.2.8` | **Fait, tagué** — `F-01`, `F-05`, `F-06`, `F-11` réglages typés et service résilient | Sur une box Kodi 22 : aucune occurrence de `Invalid setting type`, `last_refreshed` écrit, service toujours actif au tour suivant, PVR `Started`. |
+| **1b** | `0.2.9` | **Fait dans `master`** — `F-02` écriture anti-régression, `F-03` reprise avec backoff : ils partagent le même fichier d'état et la même fonction `refresh()` | Fournisseur coupé : `playlist.m3u8` et `epg.xml` inchangés (md5 identiques), retry dans le quart d'heure, reprise normale ensuite. |
+| **1c** | `0.2.10` | `F-04` setup vérifié | Installation neuve : chaînes présentes ; installation déjà configurée : aucun réglage ni aucune instance écrasés. |
 | **2** | `0.3.0` | `F-07` boot différé, `F-08` diagnostic, `F-10` catchup, refresh d'un fournisseur (#95), format `settings.xml` (#11) | `state.json` lisible, catchup dans les trois modes, refresh d'un seul fournisseur. |
 | **3** | décision | Sources externes (#67) | **Non planifié** : rejeté par la charte. |
 
@@ -66,7 +67,7 @@ Ordre de commit :
 
 `F-01`, `F-05` et `F-06` sont déjà dans `master` et partent avec cette release.
 
-### Lot 1b — intégrité des fichiers (0.2.8, fait)
+### Lot 1b — intégrité des fichiers (0.2.9, fait dans `master`)
 
 1. `feat(addon): track per-provider results` — `F-02`, état de référence.
 2. `fix(addon): keep the previous files on a degraded pass` — `F-02`.
@@ -74,7 +75,7 @@ Ordre de commit :
    `retry_after` et backoff 15 min / 1 h / 6 h.
 4. `chore(release): 0.2.9`.
 
-### Lot 1c — configuration d'IPTV Simple (0.2.9)
+### Lot 1c — configuration d'IPTV Simple (0.2.10)
 
 1. `fix(iptvsimple): verify the settings after setup()` — `F-04`.
 2. `fix(iptvsimple): configure one instance and leave the others alone` — `F-04`.
