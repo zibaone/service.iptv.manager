@@ -85,6 +85,24 @@ class IptvSimple:
         return True
 
     @classmethod
+    def is_configured(cls):
+        """Return True when IPTV Simple already points to our generated files."""
+        try:
+            addon = kodiutils.get_addon(IPTV_SIMPLE_ID)
+            output_dir = kodiutils.addon_profile()
+
+            return (
+                addon.getSetting('m3uPathType') == '0'
+                and addon.getSetting('m3uPath') == os.path.join(output_dir, IPTV_SIMPLE_PLAYLIST)
+                and addon.getSetting('epgPathType') == '0'
+                and addon.getSetting('epgPath') == os.path.join(output_dir, IPTV_SIMPLE_EPG)
+                and addon.getSetting('catchupEnabled') == 'true'
+            )
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.debug('Could not read IPTV Simple settings', exc_info=True)
+            return False
+
+    @classmethod
     def restart(cls, force=False):
         """Restart IPTV Simple"""
         if not force and (kodiutils.get_cond_visibility('Pvr.IsPlayingTv') or kodiutils.get_cond_visibility('Pvr.IsPlayingRadio')):

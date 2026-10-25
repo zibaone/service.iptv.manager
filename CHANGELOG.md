@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.7 (2026-10-25)
+
+- Configure PVR IPTV Simple automatically on first run when it does not point
+  to IPTV Manager's `playlist.m3u8` / `epg.xml` yet.
+
 ## v0.2.6 (2026-10-25)
 
 HavenOS fork, minimal scope:

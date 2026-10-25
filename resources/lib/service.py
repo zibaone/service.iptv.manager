@@ -26,6 +26,14 @@ class BackgroundService(Monitor):
         """Background loop for maintenance tasks"""
         _LOGGER.debug('Service started')
 
+        # On a fresh install IPTV Simple has no playlist/EPG configured. The
+        # add-on setup is normally triggered by a button in the settings; do it
+        # automatically so an appliance works after its first boot.
+        if not IptvSimple.is_configured():
+            _LOGGER.info('IPTV Simple is not configured for IPTV Manager; configuring it')
+            if not IptvSimple.setup():
+                _LOGGER.warning('Could not configure IPTV Simple automatically')
+
         # Service loop
         while not self.abortRequested():
             # Check if we need to do an update
