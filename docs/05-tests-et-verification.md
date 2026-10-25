@@ -11,8 +11,8 @@ dossier.
 nix develop --command bash -c 'export KODI_HOME="$PWD/tests/home" KODI_INTERACTIVE=0; pytest -q tests'
 ```
 
-État de référence au 26/10/2026 : **65 tests passés en 10 s**, couverture 82 % au
-total — `modules/addon.py` 91 %, `modules/iptvsimple.py` 86 %,
+État de référence au 26/10/2026 : **72 tests passés en 8 s**, couverture 82 % au
+total — `modules/addon.py` 91 %, `modules/iptvsimple.py` 87 %,
 `modules/state.py` 97 %, `modules/xmltv.py` 91 %, `service.py` 91 %,
 `kodiutils.py` 62 %. Les zones non couvertes de `kodiutils.py` et
 `functions.py` sont de la glu Kodi et des routes d'interface : les stubs ne
@@ -42,8 +42,8 @@ Les addons factices envoient leurs données par socket (`plugin.py`, méthode
 Chaque test doit échouer sur le code actuel, puis passer avec le correctif.
 
 **Rédigés dans la passe du 25/10/2026 :** les tables F-01, F-05, F-06 et F-11
-ci-dessous. **Rédigés le 26/10 :** F-02 et F-03. Restent à écrire ceux de F-04,
-avec son correctif.
+ci-dessous. **Rédigés le 26/10 :** F-02, F-03 et F-04. Tout le lot 1 a sa table de
+vérification ; la campagne sur box reste à faire.
 
 ### Pour F-01 (restart sûr)
 

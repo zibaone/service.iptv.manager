@@ -2,12 +2,12 @@
 
 ## 0. État au 25/10/2026 (soir)
 
-Quinze commits au-dessus de `d107225` : documentation (`efff4c7`, `70057c6`,
-`569e401`, `33520e2`, `76170c5`), cibles Kodi 21/22 (`b13b47d`), F-01
-(`e45e2d7`), F-05 (`5938c20`), F-06 (`1c9ce2e`), zip sans fichiers de
-développement (`7505b0e`), F-11 (`8ed7430`, `e5ca547`), release 0.2.8
-(`c19900d`), F-02 (`d7bbdc8`), F-03 (`e4f0e39`). 65 tests verts, `pylint` 10/10,
-couverture 82 %.
+Dix-huit commits au-dessus de `d107225` : documentation (`efff4c7`, `70057c6`,
+`569e401`, `33520e2`, `76170c5`, `6bd5d5a`, `d050d2f`), cibles Kodi 21/22
+(`b13b47d`), F-01 (`e45e2d7`), F-05 (`5938c20`), F-06 (`1c9ce2e`), zip sans
+fichiers de développement (`7505b0e`), F-11 (`8ed7430`, `e5ca547`), release 0.2.8
+(`c19900d`), F-02 (`d7bbdc8`), F-03 (`e4f0e39`), F-04 (`9c67c48`). 72 tests
+verts, `pylint` 10/10, couverture 82 %.
 
 Le même soir, deux constats ont changé le plan :
 
@@ -23,9 +23,9 @@ que la vérification sur box désigne un seul coupable.
 La 0.2.8 est construite : version et `news` dans `addon.xml`, section datée du
 `CHANGELOG`, zip relu (43 fichiers, version 0.2.8, sans `tests/`, `docs/`,
 `flake.nix` ni `.github/`), tag `v0.2.8` créé localement. Rien n'est poussé ni
-publié. `F-02` et `F-03` sont livrés dans `master` et partiront en 0.2.9, après
-la vérification de la 0.2.8 sur une box Kodi 22 avec le protocole de
-`07-incident-kodi22-service.md` §6.
+publié. `F-02`, `F-03` et `F-04` sont livrés dans `master` ; les releases 0.2.9
+et 0.2.10 restent à construire, après la vérification de la 0.2.8 sur une box
+Kodi 22 avec le protocole de `07-incident-kodi22-service.md` §6.
 
 ## 1. Vue d'ensemble
 
@@ -34,7 +34,7 @@ la vérification de la 0.2.8 sur une box Kodi 22 avec le protocole de
 | **0** | `0.2.7` | Documentation, assainissement du dépôt, tags | **Fait** : `addon.xml` installable tel quel, CI qui ne soumet plus au dépôt officiel, tags `v0.2.6` et `v0.2.7` créés. |
 | **1a** | `0.2.8` | **Fait, tagué** — `F-01`, `F-05`, `F-06`, `F-11` réglages typés et service résilient | Sur une box Kodi 22 : aucune occurrence de `Invalid setting type`, `last_refreshed` écrit, service toujours actif au tour suivant, PVR `Started`. |
 | **1b** | `0.2.9` | **Fait dans `master`** — `F-02` écriture anti-régression, `F-03` reprise avec backoff : ils partagent le même fichier d'état et la même fonction `refresh()` | Fournisseur coupé : `playlist.m3u8` et `epg.xml` inchangés (md5 identiques), retry dans le quart d'heure, reprise normale ensuite. |
-| **1c** | `0.2.10` | `F-04` setup vérifié | Installation neuve : chaînes présentes ; installation déjà configurée : aucun réglage ni aucune instance écrasés. |
+| **1c** | `0.2.10` | **Fait dans `master`** — `F-04` setup vérifié, instances préservées | Installation neuve : chaînes présentes ; installation déjà configurée : aucun réglage ni aucune instance écrasés. |
 | **2** | `0.3.0` | `F-07` boot différé, `F-08` diagnostic, `F-10` catchup, refresh d'un fournisseur (#95), format `settings.xml` (#11) | `state.json` lisible, catchup dans les trois modes, refresh d'un seul fournisseur. |
 | **3** | décision | Sources externes (#67) | **Non planifié** : rejeté par la charte. |
 
@@ -75,7 +75,7 @@ Ordre de commit :
    `retry_after` et backoff 15 min / 1 h / 6 h.
 4. `chore(release): 0.2.9`.
 
-### Lot 1c — configuration d'IPTV Simple (0.2.10)
+### Lot 1c — configuration d'IPTV Simple (0.2.10, fait dans `master`)
 
 1. `fix(iptvsimple): verify the settings after setup()` — `F-04`.
 2. `fix(iptvsimple): configure one instance and leave the others alone` — `F-04`.

@@ -21,7 +21,8 @@ Livré dans cette passe, tests verts (42) et pylint propre :
 - `e5ca547` — boucle du service qui survit à une passe en échec (F-11) ;
 - `c19900d` — release 0.2.8 : version, `news`, `CHANGELOG` ;
 - `d7bbdc8` — écriture refusée sur une passe dégradée (F-02) ;
-- `e4f0e39` — reprise avec backoff après une passe incomplète (F-03).
+- `e4f0e39` — reprise avec backoff après une passe incomplète (F-03) ;
+- `9c67c48` — setup vérifié, instances préservées (F-04).
 
 Deux constats du même soir ont ajouté deux documents :
 
@@ -30,11 +31,12 @@ Deux constats du même soir ont ajouté deux documents :
   qui devient le correctif `F-11`.
 
 `F-11` est livré et la 0.2.8 est construite, taguée localement, pas publiée :
-elle contient `F-01`, `F-05`, `F-06` et `F-11`. `F-02` et `F-03` sont livrés dans
-`master` mais partiront en 0.2.9, pour que chaque release couvre un seul mode de
-panne. Prochaine étape : vérifier la 0.2.8 sur une box Kodi 22
-(`07-incident-kodi22-service.md` §6), puis `F-04` en 0.2.10. Les raisons de cet
-ordre sont en `04-roadmap.md` §1.
+elle contient `F-01`, `F-05`, `F-06` et `F-11`. `F-02` et `F-03` (0.2.9) puis
+`F-04` (0.2.10) sont livrés dans `master`, mais leurs releases ne sont pas
+construites, pour que chaque version couvre un seul mode de panne. Prochaine
+étape : vérifier la 0.2.8 sur une box Kodi 22
+(`07-incident-kodi22-service.md` §6), puis construire 0.2.9 et 0.2.10. Les
+raisons de cet ordre sont en `04-roadmap.md` §1.
 
 ## Tableau de synthèse
 
@@ -47,7 +49,7 @@ ordre sont en `04-roadmap.md` §1.
 | F-11 | P0 | **Corrigé** (`8ed7430`, `e5ca547`) — vérification sur box Kodi 22 à faire | 0.2.8 |
 | F-02 | P0 | **Corrigé** (`d7bbdc8`) — dans `master`, à publier en 0.2.9 | 0.2.9 |
 | F-03 | P0 | **Corrigé** (`e4f0e39`) — dans `master`, à publier en 0.2.9 | 0.2.9 |
-| F-04 | P0/P1 | Partiel : auto-setup sans relecture, instances écrasées | 0.2.10 |
+| F-04 | P0/P1 | **Corrigé** (`9c67c48`) — dans `master`, à publier en 0.2.10 | 0.2.10 |
 | F-07 | P1 | Non commencé | 0.3.0 |
 | F-08 | P1 | Non commencé | 0.3.0 |
 | F-10 | P2 | Non commencé | 0.3.0 |
@@ -231,6 +233,17 @@ Kodi plante. Issue #106 : instances multiples.
 **Acceptation.** Installation neuve → chaînes présentes après le premier
 démarrage. Installation déjà configurée → aucun réglage utilisateur modifié,
 aucune autre instance écrasée.
+
+**Livré (`9c67c48`).** `setup(explicit=False)` : présence vérifiée avant tout
+appel (plus d'`InstallAddon` au démarrage), seuls les quatre chemins écrits en
+automatique, relecture immédiate avec `_same_path()` et échec en `warning` si
+Kodi n'a pas gardé la valeur. Les instances sont lues avec `ElementTree` :
+seules celles qui contiennent déjà notre `playlist.m3u8` sont modifiées, et
+seulement pour les quatre chemins, par `.tmp` + `os.replace()`. Sans playlist,
+`setup()` ne redémarre pas IPTV Simple : `restart_required` est posé et le
+premier refresh s'en charge. Un `setSetting` qui lève (Kodi 22) retourne `False`
+sans exception. `is_configured()` tolère `special://` et ne regarde plus
+`catchupEnabled`.
 
 **Risque.** La détection d'instance dépend du format de fichier de Kodi 20+ ;
 tester sur les deux boxes avant de considérer le correctif livré.
