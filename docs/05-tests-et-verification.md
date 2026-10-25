@@ -11,21 +11,27 @@ dossier.
 nix develop --command bash -c 'export KODI_HOME="$PWD/tests/home" KODI_INTERACTIVE=0; pytest -q tests'
 ```
 
-État de référence au 25/10/2026 : **4 tests passés en 22 s**.
+État de référence au 25/10/2026 (soir) : **42 tests passés en 10 s**, couverture
+78 % au total — `modules/addon.py` 91 %, `modules/iptvsimple.py` 86 %,
+`modules/xmltv.py` 93 %, `service.py` 86 %. Les fichiers de glu Kodi
+(`kodiutils.py` 54 %, `functions.py` 44 %) sont volontairement laissés de côté :
+les stubs ne valident rien de réel.
 
 ```sh
 nix flake check    # même chose dans une dérivation Nix
 make check         # pylint + vérification des traductions
 ```
 
-## 2. Ce qui est déjà couvert
+## 2. Ce qui est couvert
 
-| Test | Fichier | Couverture réelle |
-|---|---|---|
-| `test_setup` | `tests/test_iptvsimple.py` | Appelle `IptvSimple.setup()` avec les stubs ; vérifie seulement que l'appel rend `True`. |
-| `test_restart` | `tests/test_iptvsimple.py` | Appelle `restart(force=True)` et vérifie que `restart_required` retombe à `False`. **Ne vérifie ni le délai, ni l'état du PVR, ni le report en lecture.** |
-| `test_service` | `tests/test_service.py` | Démarre la boucle du service 5 s et vérifie qu'elle s'arrête. |
-| `test_refresh` | `tests/test_integration.py` | Fait un refresh complet avec trois addons factices (`tests/home/addons/plugin.video.example*`), valide le M3U, valide l'EPG contre `tests/xmltv.dtd`, teste la lecture depuis le guide. **C'est le test le plus utile : il exerce le vrai socket.** |
+| Fichier | Ce qui est verrouillé |
+|---|---|
+| `tests/test_integration.py` | Refresh complet avec trois addons factices (`tests/home/addons/plugin.video.example*`), validation du M3U, de l'EPG contre `tests/xmltv.dtd`, lecture depuis le guide. C'est le seul test qui exerce le vrai socket. |
+| `tests/test_iptvsimple.py` | Restart sûr (report en lecture, attente d'arrêt du PVR, abandon si le PVR ne s'arrête pas, erreur `-32100` traitée comme arrêt, vérification différée), `setup()` sans bascule immédiate ; génération XMLTV (échappement, dates, genres, programme invalide sauté). |
+| `tests/test_addon.py` | Contrat fournisseur : chaîne incomplète ignorée, logo absolu, version inconnue refusée, groupes normalisés, M3U brut, EPG invalide ou vide refusé ; chemin de retry (timeout puis succès, deux échecs, schéma refusé). |
+| `tests/test_addon_socket.py` | Lecture socket : UTF-8 coupé entre deux `recv()`, fournisseur muet, dépassement de taille, connexion absente, réponse vide. |
+| `tests/test_xmltv.py` | Extraction `<tv>` sans copie (mesurée par `tracemalloc`), refus des payloads invalides, écriture réelle de `epg.xml`. |
+| `tests/test_service.py` | Démarrage/arrêt de la boucle ; `_is_refresh_required` (échéance, intervalle zéro, jamais rafraîchi). |
 
 Les addons factices envoient leurs données par socket (`plugin.py`, méthode
 `via_socket`), ce qui permet de tester les cas réseau sans mock lourd.
@@ -33,6 +39,9 @@ Les addons factices envoient leurs données par socket (`plugin.py`, méthode
 ## 3. Régressions à écrire
 
 Chaque test doit échouer sur le code actuel, puis passer avec le correctif.
+
+**Rédigés dans la passe du 25/10/2026 :** les tables F-01, F-05 et F-06 ci-dessous.
+Restent à écrire ceux de F-02, F-03 et F-04, avec leurs correctifs.
 
 ### Pour F-01 (restart sûr)
 

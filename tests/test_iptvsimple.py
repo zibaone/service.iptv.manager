@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """Tests for IPTV Simple"""
 
-# pylint: disable=invalid-name,missing-docstring,no-self-use
+# pylint: disable=invalid-name,missing-docstring,no-self-use,protected-access
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import os
+import tempfile
 import unittest
 from unittest import mock
 
@@ -167,6 +169,57 @@ class IptvSimpleTest(unittest.TestCase):
         disable_index = methods.index('Addons.SetAddonEnabled')
         enable_index = len(methods) - 1 - methods[::-1].index('Addons.SetAddonEnabled')
         self.assertIn('PVR.GetProperties', methods[disable_index:enable_index])
+
+
+class ProgramXmlTest(unittest.TestCase):
+    """XML generation for one program"""
+
+    ITEM = {
+        'start': '2026-10-25T20:00:00+01:00',
+        'stop': '2026-10-25T21:00:00+01:00',
+        'title': 'Tom & Jerry <3 "x"',
+        'description': 'A <b>bold</b> move & more',
+    }
+
+    def test_escapes_xml_values(self):
+        """Ampersands, angle brackets and quotes cannot break the guide."""
+        program = IptvSimple._construct_epg_program_xml(self.ITEM, 'chan&1')
+
+        self.assertIn('channel="chan&amp;1"', program)
+        self.assertIn('<title>Tom &amp; Jerry &lt;3 &quot;x&quot;</title>', program)
+        self.assertIn('<desc>A &lt;b&gt;bold&lt;/b&gt; move &amp; more</desc>', program)
+
+    def test_formats_the_dates_for_xmltv(self):
+        """Dates are written in the XMLTV form, with the timezone offset."""
+        program = IptvSimple._construct_epg_program_xml(self.ITEM, 'chan')
+
+        self.assertIn('start="20261025200000 +0100"', program)
+        self.assertIn('stop="20261025210000 +0100"', program)
+
+    def test_accepts_a_list_of_genres(self):
+        """A genre list becomes one category per entry."""
+        item = dict(self.ITEM, genre=['news', 'sport'])
+
+        program = IptvSimple._construct_epg_program_xml(item, 'chan')
+
+        self.assertIn('<category>news</category>', program)
+        self.assertIn('<category>sport</category>', program)
+
+    def test_a_bad_program_does_not_break_the_others(self):
+        """An unparseable program is skipped, the next ones are written."""
+        bad = {'start': 'not-a-date', 'stop': 'not-a-date', 'title': 'Broken'}
+        good = dict(self.ITEM, title='Good show')
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            with mock.patch.object(kodiutils, 'addon_profile', return_value=output_dir + os.sep):
+                IptvSimple.write_epg([{'chan': [bad, good]}], [])
+
+            with open(os.path.join(output_dir, 'epg.xml'), 'rb') as handle:
+                content = handle.read().decode('utf-8')
+
+        self.assertNotIn('Broken', content)
+        self.assertEqual(content.count('<programme '), 1)
+        self.assertIn('<title>Good show</title>', content)
 
 
 if __name__ == '__main__':
