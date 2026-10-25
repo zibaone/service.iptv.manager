@@ -220,20 +220,26 @@ class Addon:
         """Request data from the specified URI"""
         # Plugin path
         if uri.startswith('plugin://'):
-            # Prepare data
-            sock = self._prepare_for_data()
-            uri = update_qs(uri, port=sock.getsockname()[1])
+            last_exc = None
 
-            _LOGGER.info('Executing RunPlugin(%s)...', uri)
-            kodiutils.execute_builtin('RunPlugin', uri)
+            # A cold add-on can take longer than the first timeout to start and
+            # answer. Retry once; the socket is closed by _wait_for_data().
+            for attempt in range(2):
+                sock = self._prepare_for_data()
+                request_uri = update_qs(uri, port=sock.getsockname()[1])
 
-            # Wait for data
-            result = self._wait_for_data(sock)
+                _LOGGER.info('Executing RunPlugin(%s)...', request_uri)
+                kodiutils.execute_builtin('RunPlugin', request_uri)
 
-            # Load data
-            data = json.loads(result)
+                try:
+                    return json.loads(self._wait_for_data(sock))
+                except Exception as exc:  # pylint: disable=broad-except
+                    last_exc = exc
+                    if attempt == 0:
+                        _LOGGER.warning('No reply from %s: %s; retrying once', uri, exc)
+                        time.sleep(1)
 
-            return data
+            raise last_exc
 
         # Currently, only plugin:// uris are supported
         raise NotImplementedError
@@ -251,7 +257,7 @@ class Addon:
         sock.listen(1)
         return sock
 
-    def _wait_for_data(self, sock, timeout=10):
+    def _wait_for_data(self, sock, timeout=30):
         """Wait for data to arrive on the socket"""
         # Set a connection timeout
         # The remote and should connect back as soon as possible so we know that the request is being processed

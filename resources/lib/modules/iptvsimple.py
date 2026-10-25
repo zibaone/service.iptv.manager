@@ -23,6 +23,10 @@ IPTV_SIMPLE_ID = 'pvr.iptvsimple'
 IPTV_SIMPLE_PLAYLIST = 'playlist.m3u8'
 IPTV_SIMPLE_EPG = 'epg.xml'
 
+# Kodi 22 needs more than one second to stop PVR IPTV Simple. Disabling and
+# re-enabling it too quickly leaves the PVR client stopped (seen on HavenOS).
+RESTART_DELAY = 8
+
 
 class IptvSimple:
     """Helper class to setup IPTV Simple"""
@@ -92,7 +96,8 @@ class IptvSimple:
         cls.restart_required = False
 
         cls._deactivate()
-        time.sleep(1)
+        _LOGGER.debug('Waiting %d seconds for IPTV Simple to stop...', RESTART_DELAY)
+        time.sleep(RESTART_DELAY)
         cls._activate()
 
     @staticmethod
@@ -149,11 +154,9 @@ class IptvSimple:
 
             fdesc.write(m3u8_data.encode('utf-8'))
 
-        # Move new file to the right place
-        if os.path.isfile(playlist_path):
-            os.remove(playlist_path)
-
-        os.rename(playlist_path + '.tmp', playlist_path)
+        # Move new file to the right place. os.replace() is atomic: readers
+        # never see a missing playlist during a refresh.
+        os.replace(playlist_path + '.tmp', playlist_path)
 
     @classmethod
     def write_epg(cls, epg_list, channels):
@@ -200,11 +203,9 @@ class IptvSimple:
 
             fdesc.write('</tv>\n'.encode('utf-8'))
 
-        # Move new file to the right place
-        if os.path.isfile(epg_path):
-            os.remove(epg_path)
-
-        os.rename(epg_path + '.tmp', epg_path)
+        # Move new file to the right place. os.replace() is atomic: readers
+        # never see a missing EPG during a refresh.
+        os.replace(epg_path + '.tmp', epg_path)
 
     @classmethod
     def _construct_epg_program_xml(cls, item, channel):

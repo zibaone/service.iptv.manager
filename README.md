@@ -6,6 +6,12 @@
 
 # IPTV Manager
 This Service Add-on allows supported IPTV Add-ons to integrates their Live TV and Radio Channels in the Kodi TV integration.
+
+> **HavenOS fork.** Upstream was archived in December 2023. This fork only
+> carries appliance fixes: a safe IPTV Simple restart on Kodi 22, one retry when
+> a provider misses the socket timeout, and atomic playlist/EPG replacement.
+> No feature work is planned here.
+
 IPTV Manager will periodically poll those Add-ons for Channels and EPG data, and generate a new M3U playlist and
 XMLTV file that the Kodi PVR Addon [IPTV Simple](https://github.com/kodi-pvr/pvr.iptvsimple) can use. IPTV Manager
 doesn't require a backend like TVHeadend since it handles all the streams inside Kodi. This is also the only way 

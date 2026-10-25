@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.6 (2026-10-25)
+
+HavenOS fork, minimal scope:
+
+- Wait 8 seconds before re-enabling PVR IPTV Simple (Kodi 22 needs more than 1 s).
+- Retry a provider once when it misses the initial 30-second socket timeout.
+- Replace `playlist.m3u8` and `epg.xml` with `os.replace()` so readers never see
+  a missing file during a refresh.
+
 ## [v0.2.3](https://github.com/add-ons/service.iptv.manager/tree/v0.2.3) (2021-02-04)
 
 [Full Changelog](https://github.com/add-ons/service.iptv.manager/compare/v0.2.2...v0.2.3)
