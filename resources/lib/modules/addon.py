@@ -12,6 +12,7 @@ import socket
 import time
 
 from resources.lib import kodiutils
+from resources.lib.modules import state as state_module
 from resources.lib.modules import xmltv
 from resources.lib.modules.iptvsimple import IptvSimple
 
@@ -41,6 +42,26 @@ def update_qs(url, **params):
     return urlunparse(url_parts)
 
 
+def count_channels(channels):
+    """Count the channels of a provider payload (JSON list or raw M3U)."""
+    if isinstance(channels, str):
+        return channels.count('#EXTINF')
+    if not channels:
+        return 0
+    return len(channels)
+
+
+def count_programs(epg):
+    """Count the programs of a provider payload without materializing it."""
+    if isinstance(epg, xmltv.RawXmltv):
+        return epg.count('<programme')
+    if isinstance(epg, dict):
+        return sum(len(items) for items in epg.values())
+    if isinstance(epg, (list, tuple)):
+        return len(epg)
+    return 0
+
+
 class Addon:
     """Helper class for Addon communication"""
 
@@ -58,6 +79,7 @@ class Addon:
         """Update channels and EPG data"""
         channels = []
         epg = []
+        results = []
 
         if show_progress:
             progress = kodiutils.progress(message=kodiutils.localize(30703))  # Detecting IPTV add-ons...
@@ -74,10 +96,11 @@ class Addon:
                                 kodiutils.localize(30704).format(addon=kodiutils.addon_name(addon.addon_obj)))
 
             # Fetch channels
+            provider_channels = addon.get_channels()
             channels.append(dict(
                 addon_id=addon.addon_id,
                 addon_name=kodiutils.addon_name(addon.addon_obj),
-                channels=addon.get_channels(),
+                channels=provider_channels,
             ))
 
             if progress and progress.iscanceled():
@@ -85,15 +108,32 @@ class Addon:
                 return
 
             # Fetch EPG
-            epg.append(addon.get_epg())
+            provider_epg = addon.get_epg()
+            epg.append(provider_epg)
+            results.append(dict(
+                addon_id=addon.addon_id,
+                channels=count_channels(provider_channels),
+                programs=count_programs(provider_epg),
+            ))
 
             if progress and progress.iscanceled():
                 progress.close()
                 return
 
+        # Refuse to replace good files with a degraded collection (docs/02, F-02).
+        output_dir = kodiutils.addon_profile()
+        status, new_state, may_write = state_module.evaluate(results, state_module.load(output_dir))
+        state_module.save(output_dir, new_state)
+
+        if not may_write:
+            _LOGGER.warning('Pass is %s: keeping the previous playlist and guide', status)
+            if show_progress:
+                progress.close()
+            return
+
         # Write files
         if show_progress:
-            progress.update(100, kodiutils.localize(30705))  # Updating channels and guide...
+            progress.update(100, kodiutils.localize(30705))
 
         IptvSimple.write_playlist(channels)
         IptvSimple.write_epg(epg, channels)
@@ -106,8 +146,11 @@ class Addon:
                 # Try to restart now. We will schedule it if the user is watching TV.
                 IptvSimple.restart(False)
 
-        # Update last_refreshed
-        kodiutils.set_setting_int('last_refreshed', int(time.time()))
+        # Only a complete pass proves that the files are good.
+        if status == state_module.STATUS_OK:
+            kodiutils.set_setting_int('last_refreshed', int(time.time()))
+        else:
+            _LOGGER.info('Pass is %s: last_refreshed not advanced', status)
 
         if show_progress:
             progress.close()

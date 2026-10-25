@@ -32,6 +32,22 @@ class RawXmltv:
             yield self._data[position:stop]
             position = stop
 
+    def count(self, needle):
+        """Count the occurrences of ``needle`` without copying the payload."""
+        if not needle:
+            return 0
+        if len(needle) == 1:
+            return sum(chunk.count(needle) for chunk in self.iter_chunks())
+
+        total = 0
+        carry = ''
+        overlap = len(needle) - 1
+        for chunk in self.iter_chunks():
+            text = carry + chunk
+            total += text.count(needle)
+            carry = text[-overlap:]
+        return total
+
 
 def parse(data):
     """Return a RawXmltv for the content of a <tv> element.

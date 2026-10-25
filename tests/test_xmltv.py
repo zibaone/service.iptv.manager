@@ -65,6 +65,16 @@ class XmltvTest(unittest.TestCase):
         self.assertEqual(len(parsed), len(programs))
         self.assertLess(peak, 1024 * 1024, 'the XMLTV payload was copied in memory')
 
+    def test_count_handles_a_needle_on_a_chunk_boundary(self):
+        """Counting programs must not miss one that straddles two chunks."""
+        filler = 'x' * (xmltv.DEFAULT_CHUNK_SIZE - 5)
+        document = '<tv>' + filler + '<programme start="1" stop="2" channel="c" />' + filler + '</tv>'
+
+        parsed = xmltv.parse(document)
+
+        self.assertEqual(parsed.count('<programme'), 1)
+        self.assertEqual(parsed.count('<programme start='), 1)
+
     def test_write_epg_streams_raw_xmltv(self):
         """write_epg() writes a RawXmltv payload as-is."""
         programs = '<programme start="1" stop="2" channel="c"><title>Show</title></programme>'
