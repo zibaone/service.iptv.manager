@@ -1,5 +1,44 @@
 # Changelog
 
+## v0.2.10 (2026-10-26)
+
+HavenOS fork, setup pass:
+
+- Verify that `pvr.iptvsimple` exists before configuring it; a missing PVR
+  client returns `False` with a warning instead of raising. The automatic
+  `InstallAddon` is gone: installing asynchronously then checking in the same
+  pass never works.
+- Write the playlist and guide paths, then read all four settings back and fail
+  when Kodi did not keep them.
+- The automatic setup at startup only writes the four paths. Catchup, EPG cache,
+  logo and time shift belong to the explicit setup from the settings button, so
+  a boot no longer overwrites the user's choices.
+- List the Kodi 20+ instance files and update only those that already reference
+  our playlist, only for the four paths, atomically. The blanket copy of
+  `settings.xml` over every instance file is gone.
+- Do not restart IPTV Simple before the first playlist exists: the first
+  refresh restarts it.
+- A setting Kodi 22 refuses returns `False` instead of raising.
+- `is_configured()` accepts `special://` paths and no longer depends on
+  `catchupEnabled`.
+- 72 unit tests, `pylint` clean, 82 % coverage.
+
+## v0.2.9 (2026-10-26)
+
+HavenOS fork, data-integrity pass:
+
+- Record per-provider channel and program counts in `providers_state.json`,
+  written atomically; a missing or corrupt file means first boot.
+- Refuse to replace a good `playlist.m3u8` or `epg.xml` with a degraded pass:
+  the files keep their previous content and `last_refreshed` does not move.
+- Accept a real decrease after three consecutive identical losses; a pass with
+  no data at all never writes an empty playlist.
+- Retry an incomplete pass with a backoff of 15 minutes, then 1 hour, then
+  6 hours; a complete pass clears it. The service loop consults it before the
+  refresh interval.
+- Count the programs of a raw XMLTV payload without copying it.
+- 65 unit tests, `pylint` clean, 82 % coverage.
+
 ## v0.2.8 (2026-10-26)
 
 HavenOS fork, reliability pass:
