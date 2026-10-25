@@ -7,29 +7,39 @@ fork.
 
 ## État après la passe du 25/10/2026
 
-Livré dans cette passe, tests verts (24) et pylint propre :
+Livré dans cette passe, tests verts (42) et pylint propre :
 
-- `efff4c7` — documentation du fork ;
+- `efff4c7`, `70057c6`, `569e401` — documentation du fork, statuts, tests du
+  contrat fournisseur et du chemin de retry ;
 - `b13b47d` — cibles Kodi 21/22, CI, release sans soumission officielle (F-09) ;
 - `e45e2d7` — restart sûr, `setup()` protégé, vérification différée (F-01) ;
 - `5938c20` — décodage incrémental et lecture bornée (F-05) ;
-- `1c9ce2e` — XMLTV brut en flux (F-06).
+- `1c9ce2e` — XMLTV brut en flux (F-06) ;
+- `7505b0e` — fichiers de développement hors du zip de release.
 
-Restent avant la 0.2.8 : F-02, F-03 et F-04, puis la vérification sur box.
+Deux constats du même soir ont ajouté deux documents :
+
+- `06-tv-common.md` — décision de ne pas dépendre de `script.module.tv_common` ;
+- `07-incident-kodi22-service.md` — diagnostic de l'arrêt du service sur Kodi 22,
+  qui devient le correctif `F-11`.
+
+Ordre retenu : `F-11` d'abord, puis `F-02` et `F-03` ensemble (0.2.9), puis
+`F-04` (0.2.10). Les raisons sont en `04-roadmap.md` §1.
 
 ## Tableau de synthèse
 
 | ID | Priorité | Statut au 25/10/2026 | Version cible |
 |---|---|---|---|
 | F-01 | P0 | **Corrigé** (`e45e2d7`) — vérification sur box à faire | 0.2.8 |
-| F-02 | P0 | Non commencé (`os.replace` seul est fait) | 0.2.8 |
-| F-03 | P0 | Non commencé | 0.2.8 |
-| F-04 | P0/P1 | Partiel : auto-setup sans relecture, instances écrasées | 0.2.8 |
-| F-05 | P1 | **Corrigé** (`5938c20`) | 0.2.9 |
-| F-06 | P1 | **Corrigé** (`1c9ce2e`) | 0.2.9 |
-| F-07 | P1 | Non commencé | 0.2.9 |
-| F-08 | P1 | Non commencé | 0.2.9 |
-| F-09 | P1 | **Corrigé** (`b13b47d`) — tags `v0.2.6`/`v0.2.7` créés localement, à pousser | 0.2.8 (a) / 0.2.9 (b) |
+| F-05 | P1 | **Corrigé** (`5938c20`) | 0.2.8 |
+| F-06 | P1 | **Corrigé** (`1c9ce2e`) | 0.2.8 |
+| F-09 | P1 | **Corrigé** (`b13b47d`) — tags `v0.2.6`/`v0.2.7` créés localement, à pousser | 0.2.8 |
+| F-11 | P0 | **Nouveau** (`07`) — à faire avant F-02 et F-03 | 0.2.8 |
+| F-02 | P0 | Non commencé (`os.replace` seul est fait) | 0.2.9 |
+| F-03 | P0 | Non commencé | 0.2.9 |
+| F-04 | P0/P1 | Partiel : auto-setup sans relecture, instances écrasées | 0.2.10 |
+| F-07 | P1 | Non commencé | 0.3.0 |
+| F-08 | P1 | Non commencé | 0.3.0 |
 | F-10 | P2 | Non commencé | 0.3.0 |
 
 ---
@@ -329,3 +339,58 @@ un replay qui échoue.
 `catchup-source` dans son M3U brut), `none`.
 
 **Tests.** Playlist générée dans les trois modes.
+
+---
+
+## F-11 — Réglages typés et service qui survit à une passe en échec (P0)
+
+**À faire avant F-02 et F-03.** Ces deux correctifs réécrivent `last_refreshed`.
+Les construire sur un setter qui arrête le service sur Kodi 22 donnerait des
+tests verts en local et une panne sur la box, parce que les stubs de test ne
+reproduisent pas la validation de type de Kodi.
+
+**Symptôme.** Sur Kodi 22, le service s'arrête après un refresh :
+`EXCEPTION: Invalid setting type` dans le journal, puis plus aucune passe
+jusqu'au démarrage suivant. Preuve et mécanisme complet en
+`07-incident-kodi22-service.md`.
+
+**Cause.**
+
+1. `resources/settings.xml:4` déclare `<setting id="last_refreshed"
+   visible="false"/>` sans `type`.
+2. `modules/addon.py:110` écrit par `kodiutils.set_setting_int`.
+3. `kodiutils.set_setting_int` (`:195-200`) n'attrape que `AttributeError` et
+   `TypeError`.
+4. Sur Kodi 22, `setSettingInt` valide le type du schéma et lève
+   `RuntimeError("Invalid setting type")`.
+5. `service.py` appelle `Addon.refresh()` dans sa boucle sans `try` : l'exception
+   sort de la boucle et le service se termine.
+
+**Correctif.**
+
+1. Déclarer `last_refreshed` en `type="integer"` dans `resources/settings.xml`.
+2. Lire par l'API typée d'abord : `ADDON.getSettings().getInt(key)` pour un
+   entier, `getBool(key)` pour un booléen ; repli sur `ADDON.getSetting(key)`
+   quand `getSettings()` n'existe pas.
+3. Garder l'ordre legacy pour les booléens non déclarés au schéma : la lecture
+   chaîne est silencieuse, `getBool` logge une erreur (leçon du 06/10).
+4. Setters : attraper `RuntimeError` en plus de `AttributeError` et `TypeError`,
+   puis écrire par l'API chaîne en repli.
+5. `service.py` : envelopper `Addon.refresh()` et `IptvSimple.restart()` dans un
+   `try/except Exception`, logguer, et continuer la boucle. Une passe en échec
+   ne doit jamais arrêter le service.
+
+**Tests.** `test_get_setting_int_prefers_typed_api`,
+`test_get_setting_int_falls_back_on_legacy`,
+`test_set_setting_int_falls_back_when_type_is_invalid`,
+`test_bool_read_keeps_legacy_order`,
+`test_service_survives_a_failed_refresh`. Le premier rejoue exactement
+`RuntimeError("Invalid setting type")`.
+
+**Acceptation.** Sur une box Kodi 22 : aucune occurrence de
+`Invalid setting type` sur une fenêtre couvrant une passe, `last_refreshed` relu
+supérieur à zéro, service toujours actif au tour suivant, PVR intact.
+
+**Risque.** Un repli trop large masquerait une vraie erreur de schéma. Le repli
+doit logguer en `debug`, et seulement pour `RuntimeError`, `AttributeError` et
+`TypeError`.

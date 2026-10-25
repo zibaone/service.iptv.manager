@@ -41,7 +41,7 @@ Les addons factices envoient leurs données par socket (`plugin.py`, méthode
 Chaque test doit échouer sur le code actuel, puis passer avec le correctif.
 
 **Rédigés dans la passe du 25/10/2026 :** les tables F-01, F-05 et F-06 ci-dessous.
-Restent à écrire ceux de F-02, F-03 et F-04, avec leurs correctifs.
+Restent à écrire ceux de F-11, F-02, F-03 et F-04, avec leurs correctifs.
 
 ### Pour F-01 (restart sûr)
 
@@ -51,6 +51,16 @@ Restent à écrire ceux de F-02, F-03 et F-04, avec leurs correctifs.
 | `test_restart_waits_for_pvr_stop` | Séquence JSON-RPC simulée : `available=true`, puis `false` après 2 s, puis `true` après réactivation | L'ordre des appels est `disable → attente → enable` ; l'activation n'a lieu qu'après le passage à `false`. Utiliser un faux temps (monkeypatch de `time.sleep`) pour un test instantané. |
 | `test_restart_aborts_when_pvr_never_stops` | `available` reste vrai | Pas d'activation ; `restart_required` vrai ; un message d'avertissement est loggué. |
 | `test_setup_does_not_toggle_without_wait` | Appel de `setup()` | Aucune paire disable/enable sans attente vérifiée ; le chemin de restart sûr est utilisé. |
+
+### Pour F-11 (réglages typés et service résilient)
+
+| Nom proposé | Scénario | Assertions |
+|---|---|---|
+| `test_get_setting_int_prefers_typed_api` | `getSettings().getInt` rend 42 ; `getSetting` lève `RuntimeError("Invalid setting type")` | Retour 42, sans exception. |
+| `test_get_setting_int_falls_back_on_legacy` | `getSettings().getInt` lève `RuntimeError` (réglage de type chaîne, comme `refresh_interval`) ; `getSetting` rend `"24"` | Retour 24. |
+| `test_set_setting_int_falls_back_when_type_is_invalid` | `setSettingInt` lève `RuntimeError` ; espion sur `setSetting` | Écriture par `setSetting` avec la valeur en chaîne, aucune exception. |
+| `test_bool_read_keeps_legacy_order` | `getSetting` rend `"true"` ; `getBool` espionné | `getBool` n'est pas appelé ; retour `True`. Puis `getSetting` lève `RuntimeError`, `getBool` rend `True` → retour `True`. |
+| `test_service_survives_a_failed_refresh` | `refresh()` lève `RuntimeError("Invalid setting type")`, puis `waitForAbort` rend vrai | `run()` ne propage pas ; le journal contient une erreur ; la boucle a fait un tour. |
 
 ### Pour F-02 / F-03 (écriture et reprise)
 

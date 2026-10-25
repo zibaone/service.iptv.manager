@@ -2,75 +2,86 @@
 
 ## 0. État au 25/10/2026 (soir)
 
-Lot 0 livré (`b13b47d`). Trois correctifs du lot 1 livrés en avance : F-01 (`e45e2d7`),
-F-05 (`5938c20`), F-06 (`1c9ce2e`). Restent F-02, F-03 et F-04 avant la 0.2.8, puis la
-vérification sur box et la mise à jour du pin HavenOS.
+Neuf commits au-dessus de `d107225` : documentation (`efff4c7`, `70057c6`,
+`569e401`), cibles Kodi 21/22 (`b13b47d`), F-01 (`e45e2d7`), F-05 (`5938c20`),
+F-06 (`1c9ce2e`), zip sans fichiers de développement (`7505b0e`). 42 tests
+verts, `pylint` 10/10.
+
+Le même soir, deux constats ont changé le plan :
+
+- sur Kodi 22, le service s'arrête à l'écriture de `last_refreshed`
+  (`07-incident-kodi22-service.md`) : c'est `F-11`, prioritaire sur tout le
+  reste ;
+- dépendre de `script.module.tv_common` est écarté (`06-tv-common.md`) : on
+  emprunte le motif de lecture typée, rien de plus.
+
+Le lot 1 est donc scindé en trois releases. Une release par mode de panne, pour
+que la vérification sur box désigne un seul coupable.
 
 ## 1. Vue d'ensemble
 
 | Lot | Version | Contenu | Critère de sortie |
 |---|---|---|---|
-| **0** | `0.2.7` (inchangée) | Documentation, assainissement du dépôt, tags manquants | Tests verts, `addon.xml` installable tel quel, CI qui ne soumet plus au dépôt officiel. |
-| **1** | `0.2.8` | `F-01` restart sûr, `F-02` écriture anti-régression, `F-03` reprise après échec, `F-04` setup vérifié | Sur une box : refresh pendant lecture → aucun restart ; refresh sans lecture → PVR `Started`, 5 143 chaînes ; fournisseur coupé → playlist précédente conservée. |
-| **2** | `0.2.9` | `F-05` socket robuste, `F-06` XMLTV sans double copie, `F-07` boot différé, `F-08` diagnostic | Pas d'erreur de décodage sur payload accentué ; mémoire stable sur un EPG de ~93 Mo ; état `state.json` lisible. |
-| **3** | `0.3.0` | `F-10` catchup configurable, refresh d'un fournisseur (#95), format `settings.xml` (#11) | Réglages visibles et testés dans les trois modes catchup. |
-| **4** | décision | Sources externes (#67) | **Non planifié** : rejeté par la charte. |
+| **0** | `0.2.7` | Documentation, assainissement du dépôt, tags | **Fait** : `addon.xml` installable tel quel, CI qui ne soumet plus au dépôt officiel, tags `v0.2.6` et `v0.2.7` créés. |
+| **1a** | `0.2.8` | `F-01` (fait), `F-05` (fait), `F-06` (fait), `F-11` réglages typés et service résilient | Sur une box Kodi 22 : aucune occurrence de `Invalid setting type`, `last_refreshed` écrit, service toujours actif au tour suivant, PVR `Started`. |
+| **1b** | `0.2.9` | `F-02` écriture anti-régression, `F-03` reprise après échec | Fournisseur coupé : `playlist.m3u8` et `epg.xml` inchangés (md5 identiques), retry dans le quart d'heure, reprise normale ensuite. |
+| **1c** | `0.2.10` | `F-04` setup vérifié | Installation neuve : chaînes présentes ; installation déjà configurée : aucun réglage ni aucune instance écrasés. |
+| **2** | `0.3.0` | `F-07` boot différé, `F-08` diagnostic, `F-10` catchup, refresh d'un fournisseur (#95), format `settings.xml` (#11) | `state.json` lisible, catchup dans les trois modes, refresh d'un seul fournisseur. |
+| **3** | décision | Sources externes (#67) | **Non planifié** : rejeté par la charte. |
 
-Chaque lot se termine par une release taguée et vérifiée sur les deux boxes
-avant de passer au suivant. Aucun lot ne démarre sans les tests du précédent au
-vert.
+Chaque lot se termine par une release taguée et vérifiée sur les boxes avant de
+passer au suivant. Aucun lot ne démarre sans les tests du précédent au vert.
 
 ## 2. Détail des lots
 
-### Lot 0 — socle propre
+### Lot 0 — socle propre (fait)
 
 1. `F-09` : `addon.xml` en `xbmc.python 3.0.0` ; `Makefile`, `addon-check.yml`
    et `ci.yml` alignés sur Kodi 21/22 et Python 3.11/3.12.
-2. `release.yml` : retirer l'étape `xbmc/action-kodi-addon-submitter` (soumission
-   au dépôt officiel), garder la construction et l'attachement du zip.
-3. Tags manquants : `git tag -a v0.2.7 d107225 -m "0.2.7"` (et `v0.2.6`
-   sur `a1bbc8d` si l'on veut l'historique complet), puis `git push --tags`.
-4. `README.md` : badges du fork, suppression des liens de statut de l'amont.
-5. `CHANGELOG.md` : ajouter une section « 0.2.8 » vide en tête, prête à remplir.
+2. `release.yml` : plus de soumission au dépôt officiel, seulement la release
+   GitHub et l'attachement du zip.
+3. Tags `v0.2.6` et `v0.2.7` créés localement, à pousser avec la branche.
+4. `README.md` : badges du fork.
+5. Zip de release : ni `tests/`, ni `flake.nix`, ni `.github/`.
 
-Aucun changement de comportement dans ce lot ; c'est volontaire, pour isoler la
-release de référence.
+### Lot 1a — arrêt du service et réglages (0.2.8)
 
-### Lot 1 — fiabilité (0.2.8)
+Ordre de commit :
 
-Ordre de commit conseillé, un correctif par commit :
+1. `fix(kodiutils): read and write settings through the typed API` — `F-11`,
+   avec le repli legacy et le test qui rejoue `RuntimeError("Invalid setting
+   type")`.
+2. `fix(service): keep the loop alive when a pass fails` — `F-11`, garde
+   `try/except` autour de `Addon.refresh()` et `IptvSimple.restart()`.
+3. `chore(settings): declare last_refreshed as an integer` — schéma.
+4. `chore(release): 0.2.8`.
 
-1. `fix(iptvsimple): wait for the PVR to stop before re-enabling it` — F-01,
-   avec `_wait_for_pvr_stopped()` et la garde de lecture.
-2. `fix(iptvsimple): use the safe restart path in setup()` — F-01 (dernière
-   partie), suppression du `_deactivate()` suivi d'un `_activate()` immédiat.
-3. `fix(addon): keep the previous playlist when a provider fails` — F-02,
-   fichier d'état + validation de complétude.
-4. `fix(service): only mark a refresh as done when it succeeded` — F-03,
-   `retry_after` et backoff.
-5. `fix(iptvsimple): verify IPTV Simple settings after setup()` — F-04,
-   relecture, absence de PVR, instances multiples.
-6. `chore(release): 0.2.8` — versions, `news`, `CHANGELOG`, tests.
+`F-01`, `F-05` et `F-06` sont déjà dans `master` et partent avec cette release.
 
-Tests attendus dans ce lot : une dizaine de nouveaux cas (voir `05-tests-et-verification.md`), dont les quatre du restart sûr.
+### Lot 1b — intégrité des fichiers (0.2.9)
 
-### Lot 2 — robustesse (0.2.9)
+1. `feat(addon): track per-provider results` — `F-02`, état de référence.
+2. `fix(addon): keep the previous files on a degraded pass` — `F-02`.
+3. `fix(service): only mark a refresh as done when it succeeded` — `F-03`,
+   `retry_after` et backoff 15 min / 1 h / 6 h.
+4. `chore(release): 0.2.9`.
 
-1. `fix(addon): decode provider payloads incrementally` — F-05.
-2. `fix(addon): bound socket reads with a data timeout` — F-05.
-3. `perf(addon): stream raw XMLTV without copying it` — F-06.
-4. `fix(service): defer the first refresh and skip it during playback` — F-07.
-5. `feat(addon): write a run summary in state.json` — F-08.
-6. `chore(release): 0.2.9`.
+### Lot 1c — configuration d'IPTV Simple (0.2.10)
 
-### Lot 3 — fonctionnalités utiles (0.3.0)
+1. `fix(iptvsimple): verify the settings after setup()` — `F-04`.
+2. `fix(iptvsimple): configure one instance and leave the others alone` — `F-04`.
+3. `fix(iptvsimple): return False when pvr.iptvsimple is missing` — `F-04`.
+4. `chore(release): 0.2.10`.
 
-1. `feat(addon): allow refreshing a single provider` — #95 ; sert aussi de
-   mécanisme de réparation manuelle.
-2. `feat(iptvsimple): make the catchup attribute configurable` — F-10.
-3. `chore(settings): migrate to the new settings.xml format` — #11, si le test
+### Lot 2 — diagnostic et fonctionnalités utiles (0.3.0)
+
+1. `fix(service): defer the first refresh and skip it during playback` — `F-07`.
+2. `feat(addon): write a run summary in state.json` — `F-08`.
+3. `feat(iptvsimple): make the catchup attribute configurable` — `F-10`.
+4. `feat(addon): allow refreshing a single provider` — #95.
+5. `chore(settings): migrate to the new settings.xml format` — #11, si le test
    de non-régression des réglages passe.
-4. `chore(release): 0.3.0`.
+6. `chore(release): 0.3.0`.
 
 ## 3. Procédure de release
 

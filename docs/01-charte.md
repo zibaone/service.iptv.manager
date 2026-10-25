@@ -25,13 +25,12 @@ Ce n'est pas un fork de fonctionnalités.
 
 - Kodi **21 et 22** (les deux boxes de l'appliance tournent sur Kodi 22).
 - Python 3 uniquement. Le code Python 2 de l'amont n'est pas maintenu.
-- `addon.xml` doit déclarer `<import addon="xbmc.python" version="3.0.0"/>`.
-  **État actuel non conforme** : le fichier déclare encore `2.26.0` ; le paquet
-  Nix de HavenOS corrige la valeur avec `postPatch`. Cette correction doit être
-  faite dans le dépôt (voir `F-09`), pour que le zip publié soit installable tel
-  quel.
+- `addon.xml` déclare `<import addon="xbmc.python" version="3.0.0"/>` depuis
+  `b13b47d`. Le `postPatch` du paquet HavenOS, qui réécrivait `2.26.0`, devient
+  inutile et doit être retiré à la prochaine mise à jour du pin.
 - Dépendances conservées : `script.module.dateutil`, `pvr.iptvsimple`.
-  Aucune dépendance nouvelle sans décision écrite ici.
+  Aucune dépendance nouvelle sans décision écrite ici ; la question de
+  `script.module.tv_common` est tranchée en `06-tv-common.md`.
 
 ## 4. Contrat d'interopérabilité à ne jamais casser
 
@@ -94,14 +93,16 @@ Toute évolution doit les préserver, et un test doit le vérifier.
 |---|---|---|
 | D1 | Pas de refonte : on corrige les fonctions existantes. | Tout le fork |
 | D2 | `os.replace()` pour les fichiers finaux (au lieu de `remove` + `rename`). | `iptvsimple.py:177`, `:226` |
-| D3 | Timeout de socket porté à 30 s, avec un retry. | `addon.py:260` et boucle `_get_data_from_addon` |
-| D4 | Attente de 8 s avant réactivation d'IPTV Simple (au lieu de 1 s). | `iptvsimple.py:28` |
+| D3 | Lecture socket bornée : timeout de connexion 30 s, lecture 120 s, taille maximale 64 Mio, un retry par passe. | `addon.py`, `_get_data_from_addon` et `_wait_for_data` |
+| D4 | Attente vérifiée de l'arrêt du PVR (plafond 60 s) avant réactivation d'IPTV Simple. | `iptvsimple.py`, `restart()` |
 | D5 | Configuration automatique d'IPTV Simple au démarrage si non configuré. | `service.py`, `iptvsimple.py:88` |
 | D6 | Interface et identifiant conservés ; aucune nouvelle dépendance. | `addon.xml` |
+| D7 | Pas de dépendance runtime à `script.module.tv_common` ; on emprunte le motif de lecture typée et rien d'autre. | `kodiutils.py`, `06-tv-common.md` |
+| D8 | `F-11` (réglages typés, service résilient) passe avant `F-02` et `F-03`, qui réécrivent `last_refreshed`. | `02-correctifs.md`, `07-incident-kodi22-service.md` |
+| D9 | Trois releases successives pour le lot 1 : `0.2.8` (F-11), `0.2.9` (F-02/F-03), `0.2.10` (F-04). | `04-roadmap.md` |
 
-Les décisions D3, D4 et D5 sont **provisoires** : elles corrigent le symptôme,
-pas encore la cause. Elles seront remplacées par les correctifs `F-01` et
-`F-04` (voir `02-correctifs.md`).
+D3, D4 et D5 étaient provisoires : D3 et D4 sont maintenant livrées et vérifiées
+par des tests. D5 reste provisoire jusqu'à `F-04`.
 
 ## 8. Ce que ce fork refuse explicitement
 
@@ -117,8 +118,9 @@ pas encore la cause. Elles seront remplacées par les correctifs `F-01` et
 
 | # | Question | Recommandation |
 |---|---|---|
-| Q1 | Attente fixe de 8 s ou attente vérifiée de l'arrêt du PVR ? | Attente vérifiée, avec plafond et repli (F-01). |
-| Q2 | En cas de passe dégradée (un fournisseur manquant) : conserver l'ancienne playlist ou écrire la nouvelle partielle ? | Conserver l'ancienne et réessayer (F-02). |
+| Q1 | Attente fixe de 8 s ou attente vérifiée de l'arrêt du PVR ? | **Tranchée** : attente vérifiée, livrée en `e45e2d7`. |
+| Q2 | En cas de passe dégradée (un fournisseur manquant) : conserver l'ancienne playlist ou écrire la nouvelle partielle ? | **Tranchée** : conserver l'ancienne et réessayer (F-02). |
 | Q3 | Réactiver `iptv_simple_restart=true` sur les boxes après F-01 ? | Oui, mais seulement après vérification sur une box, lecteur actif puis inactif. |
 | Q4 | Publier le zip dans le dépôt d'artefacts des boxes, ou rester sur le pin HavenOS ? | Les deux : le pin pour l'image, le dépôt pour la mise à jour sans réinstallation. |
-| Q5 | Garder le `postPatch` HavenOS qui réécrit `xbmc.python` ? | Non, une fois `F-09` livré : le dépôt doit être correct par lui-même. |
+| Q5 | Garder le `postPatch` HavenOS qui réécrit `xbmc.python` ? | Non : `F-09` est livré (`b13b47d`), le retirer à la prochaine mise à jour du pin. |
+| Q6 | Faire dépendre le service de `script.module.tv_common` ? | **Tranchée** : non pour le runtime, deux emprunts ciblés (`06-tv-common.md`). |
