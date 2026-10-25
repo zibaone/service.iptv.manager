@@ -11,11 +11,11 @@ dossier.
 nix develop --command bash -c 'export KODI_HOME="$PWD/tests/home" KODI_INTERACTIVE=0; pytest -q tests'
 ```
 
-État de référence au 25/10/2026 (soir) : **42 tests passés en 10 s**, couverture
-78 % au total — `modules/addon.py` 91 %, `modules/iptvsimple.py` 86 %,
-`modules/xmltv.py` 93 %, `service.py` 86 %. Les fichiers de glu Kodi
-(`kodiutils.py` 54 %, `functions.py` 44 %) sont volontairement laissés de côté :
-les stubs ne valident rien de réel.
+État de référence au 25/10/2026 (soir) : **52 tests passés en 10 s**, couverture
+80 % au total — `modules/addon.py` 91 %, `modules/iptvsimple.py` 86 %,
+`modules/xmltv.py` 93 %, `service.py` 90 %, `kodiutils.py` 62 %. Les zones non
+couvertes de `kodiutils.py` et `functions.py` sont de la glu Kodi et des routes
+d'interface : les stubs ne valident rien de réel.
 
 ```sh
 nix flake check    # même chose dans une dérivation Nix
@@ -40,8 +40,8 @@ Les addons factices envoient leurs données par socket (`plugin.py`, méthode
 
 Chaque test doit échouer sur le code actuel, puis passer avec le correctif.
 
-**Rédigés dans la passe du 25/10/2026 :** les tables F-01, F-05 et F-06 ci-dessous.
-Restent à écrire ceux de F-11, F-02, F-03 et F-04, avec leurs correctifs.
+**Rédigés dans la passe du 25/10/2026 :** les tables F-01, F-05, F-06 et F-11
+ci-dessous. Restent à écrire ceux de F-02, F-03 et F-04, avec leurs correctifs.
 
 ### Pour F-01 (restart sûr)
 

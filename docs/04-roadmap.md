@@ -2,10 +2,11 @@
 
 ## 0. État au 25/10/2026 (soir)
 
-Neuf commits au-dessus de `d107225` : documentation (`efff4c7`, `70057c6`,
+Onze commits au-dessus de `d107225` : documentation (`efff4c7`, `70057c6`,
 `569e401`), cibles Kodi 21/22 (`b13b47d`), F-01 (`e45e2d7`), F-05 (`5938c20`),
-F-06 (`1c9ce2e`), zip sans fichiers de développement (`7505b0e`). 42 tests
-verts, `pylint` 10/10.
+F-06 (`1c9ce2e`), zip sans fichiers de développement (`7505b0e`), dossier
+Kodi 22 et décision `tv_common` (`33520e2`), F-11 (`8ed7430`, `e5ca547`).
+52 tests verts, `pylint` 10/10, couverture 80 %.
 
 Le même soir, deux constats ont changé le plan :
 
@@ -17,6 +18,10 @@ Le même soir, deux constats ont changé le plan :
 
 Le lot 1 est donc scindé en trois releases. Une release par mode de panne, pour
 que la vérification sur box désigne un seul coupable.
+
+`F-11` est livré dans `master`. Il reste, pour la 0.2.8 : version et `news` dans
+`addon.xml`, section datée du `CHANGELOG`, puis la vérification sur une box
+Kodi 22 avec le protocole de `07-incident-kodi22-service.md` §6.
 
 ## 1. Vue d'ensemble
 

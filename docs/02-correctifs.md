@@ -15,7 +15,10 @@ Livré dans cette passe, tests verts (42) et pylint propre :
 - `e45e2d7` — restart sûr, `setup()` protégé, vérification différée (F-01) ;
 - `5938c20` — décodage incrémental et lecture bornée (F-05) ;
 - `1c9ce2e` — XMLTV brut en flux (F-06) ;
-- `7505b0e` — fichiers de développement hors du zip de release.
+- `7505b0e` — fichiers de développement hors du zip de release ;
+- `33520e2` — diagnostic Kodi 22 (`07`), décision `tv_common` (`06`), fiche F-11 ;
+- `8ed7430` — réglages typés, `last_refreshed` déclaré entier (F-11) ;
+- `e5ca547` — boucle du service qui survit à une passe en échec (F-11).
 
 Deux constats du même soir ont ajouté deux documents :
 
@@ -23,8 +26,10 @@ Deux constats du même soir ont ajouté deux documents :
 - `07-incident-kodi22-service.md` — diagnostic de l'arrêt du service sur Kodi 22,
   qui devient le correctif `F-11`.
 
-Ordre retenu : `F-11` d'abord, puis `F-02` et `F-03` ensemble (0.2.9), puis
-`F-04` (0.2.10). Les raisons sont en `04-roadmap.md` §1.
+`F-11` est livré. Prochaine étape : préparer la release 0.2.8 (version,
+`news`, `CHANGELOG`), la vérifier sur une box Kodi 22, puis attaquer `F-02` et
+`F-03` ensemble (0.2.9) et `F-04` (0.2.10). Les raisons de cet ordre sont en
+`04-roadmap.md` §1.
 
 ## Tableau de synthèse
 
@@ -34,7 +39,7 @@ Ordre retenu : `F-11` d'abord, puis `F-02` et `F-03` ensemble (0.2.9), puis
 | F-05 | P1 | **Corrigé** (`5938c20`) | 0.2.8 |
 | F-06 | P1 | **Corrigé** (`1c9ce2e`) | 0.2.8 |
 | F-09 | P1 | **Corrigé** (`b13b47d`) — tags `v0.2.6`/`v0.2.7` créés localement, à pousser | 0.2.8 |
-| F-11 | P0 | **Nouveau** (`07`) — à faire avant F-02 et F-03 | 0.2.8 |
+| F-11 | P0 | **Corrigé** (`8ed7430`, `e5ca547`) — vérification sur box Kodi 22 à faire | 0.2.8 |
 | F-02 | P0 | Non commencé (`os.replace` seul est fait) | 0.2.9 |
 | F-03 | P0 | Non commencé | 0.2.9 |
 | F-04 | P0/P1 | Partiel : auto-setup sans relecture, instances écrasées | 0.2.10 |
@@ -375,7 +380,9 @@ jusqu'au démarrage suivant. Preuve et mécanisme complet en
 3. Garder l'ordre legacy pour les booléens non déclarés au schéma : la lecture
    chaîne est silencieuse, `getBool` logge une erreur (leçon du 06/10).
 4. Setters : attraper `RuntimeError` en plus de `AttributeError` et `TypeError`,
-   puis écrire par l'API chaîne en repli.
+   puis écrire par l'API chaîne en repli. Si les deux écritures échouent,
+   logguer en `warning` et rendre la main sans exception : l'écriture d'un
+   réglage ne doit jamais arrêter l'appelant.
 5. `service.py` : envelopper `Addon.refresh()` et `IptvSimple.restart()` dans un
    `try/except Exception`, logguer, et continuer la boucle. Une passe en échec
    ne doit jamais arrêter le service.
