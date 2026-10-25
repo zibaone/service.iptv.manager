@@ -10,7 +10,10 @@ import os
 _LOGGER = logging.getLogger(__name__)
 
 STATE_FILE = 'providers_state.json'
+META_KEY = '_meta'
 MAX_FAILURES = 3
+# Backoff after a failed pass: 15 min, then 1 h, then 6 h (docs/02, F-03).
+BACKOFF = (15 * 60, 60 * 60, 6 * 60 * 60)
 
 STATUS_OK = 'ok'
 STATUS_PARTIAL = 'partial'
@@ -99,3 +102,27 @@ def evaluate(results, previous):
         status = STATUS_OK
 
     return status, new_state, may_write
+
+
+def record(previous, status, now):
+    """Return the meta section of the state for this pass.
+
+    A successful pass clears the backoff. Any other status records the attempt
+    and the next time a pass may run, so a failing provider is retried soon but
+    never hammered.
+    """
+    meta = dict(previous.get(META_KEY) or {})
+    failures = meta.get('failures') or 0
+
+    if status == STATUS_OK:
+        failures = 0
+        retry_after = 0
+    else:
+        failures += 1
+        retry_after = now + BACKOFF[min(failures, len(BACKOFF)) - 1]
+
+    return {
+        'last_attempt': int(now),
+        'failures': failures,
+        'retry_after': int(retry_after),
+    }

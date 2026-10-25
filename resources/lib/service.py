@@ -9,6 +9,7 @@ import time
 from xbmc import Monitor
 
 from resources.lib import kodilogging, kodiutils
+from resources.lib.modules import state
 from resources.lib.modules.addon import Addon
 from resources.lib.modules.iptvsimple import IptvSimple
 
@@ -59,11 +60,20 @@ class BackgroundService(Monitor):
         _LOGGER.debug('Service stopped')
 
     @staticmethod
-    def _is_refresh_required():
+    def _is_refresh_required(now=None):
         """Returns if we should trigger an update based on the settings."""
+        now = time.time() if now is None else now
+
+        # A failed pass sets the next attempt: never retry before it, and never
+        # hammer a provider (docs/02, F-03).
+        meta = state.load(kodiutils.addon_profile()).get(state.META_KEY) or {}
+        retry_after = meta.get('retry_after') or 0
+        if retry_after:
+            return now >= retry_after
+
         refresh_interval = kodiutils.get_setting_int('refresh_interval', 24) * 3600
         last_refreshed = kodiutils.get_setting_int('last_refreshed', 0)
-        return (last_refreshed + refresh_interval) <= time.time()
+        return (last_refreshed + refresh_interval) <= now
 
 
 def run():

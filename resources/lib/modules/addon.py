@@ -122,7 +122,10 @@ class Addon:
 
         # Refuse to replace good files with a degraded collection (docs/02, F-02).
         output_dir = kodiutils.addon_profile()
-        status, new_state, may_write = state_module.evaluate(results, state_module.load(output_dir))
+        now = int(time.time())
+        previous = state_module.load(output_dir)
+        status, new_state, may_write = state_module.evaluate(results, previous)
+        new_state[state_module.META_KEY] = state_module.record(previous, status, now)
         state_module.save(output_dir, new_state)
 
         if not may_write:

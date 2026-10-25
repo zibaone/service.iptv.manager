@@ -140,6 +140,51 @@ class RefreshGuardTest(unittest.TestCase):
         self.assertEqual(state['a']['failures'], 0)
         self.assertEqual(state['b']['channels'], 1)
 
+    def test_failed_pass_schedules_a_retry(self):
+        """A degraded pass records the attempt and the next allowed time."""
+        write_state({'a': {'channels': 3, 'programs': 4, 'failures': 0}})
+        now = 1800000000
+
+        with mock.patch('resources.lib.modules.addon.time.time', return_value=now):
+            self.refresh([FakeProvider('a', [], {})])
+
+        meta = read_state()['_meta']
+        self.assertEqual(meta['last_attempt'], now)
+        self.assertEqual(meta['failures'], 1)
+        self.assertEqual(meta['retry_after'], now + 15 * 60)
+
+    def test_second_failure_backs_off_to_one_hour(self):
+        """Two failures in a row wait an hour before the next attempt."""
+        now = 1800000000
+        write_state({
+            'a': {'channels': 3, 'programs': 4, 'failures': 0},
+            '_meta': {'last_attempt': now - 900, 'failures': 1, 'retry_after': now},
+        })
+
+        with mock.patch('resources.lib.modules.addon.time.time', return_value=now):
+            self.refresh([FakeProvider('a', [], {})])
+
+        meta = read_state()['_meta']
+        self.assertEqual(meta['failures'], 2)
+        self.assertEqual(meta['retry_after'], now + 60 * 60)
+
+    def test_success_clears_the_retry(self):
+        """A complete pass removes the backoff and the previous failure count."""
+        now = 1800000000
+        write_state({
+            'a': {'channels': 1, 'programs': 1, 'failures': 2},
+            '_meta': {'last_attempt': now - 900, 'failures': 2, 'retry_after': now},
+        })
+        provider = FakeProvider('a', [{'name': 'A', 'stream': 'http://a'}], {'a': [{'title': 'T'}]})
+
+        with mock.patch('resources.lib.modules.addon.time.time', return_value=now):
+            self.refresh([provider])
+
+        meta = read_state()['_meta']
+        self.assertEqual(meta['failures'], 0)
+        self.assertEqual(meta['retry_after'], 0)
+        self.assertEqual(meta['last_attempt'], now)
+
 
 if __name__ == '__main__':
     unittest.main()
