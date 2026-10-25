@@ -1,7 +1,7 @@
 export KODI_HOME := $(CURDIR)/tests/home
 export KODI_INTERACTIVE := 0
 PYTHON := python
-KODI_PYTHON_ABIS := 3.0.0 2.26.0
+KODI_PYTHON_ABIS := 3.0.0
 
 # Collect information to build as sensible package name
 name = $(shell xmllint --xpath 'string(/addon/@id)' addon.xml)
@@ -42,7 +42,7 @@ check-addon: clean build
 	@printf ">>> Running addon checks\n"
 	$(eval TMPDIR := $(shell mktemp -d))
 	@unzip ../${zip_name} -d ${TMPDIR}
-	cd ${TMPDIR} && kodi-addon-checker --branch=leia
+	cd ${TMPDIR} && kodi-addon-checker --branch=omega
 	@rm -rf ${TMPDIR}
 
 codefix:
@@ -69,25 +69,14 @@ build: clean
 
 release:
 ifneq ($(release),)
-	@github_changelog_generator -u add-ons -p service.iptv.manager --no-issues --future-release v$(release);
-
 	@printf "cd /addon/@version\nset $$release\nsave\nbye\n" | xmllint --shell addon.xml; \
 	date=$(shell date '+%Y-%m-%d'); \
 	printf "cd /addon/extension[@point='xbmc.addon.metadata']/news\nset v$$release ($$date)\nsave\nbye\n" | xmllint --shell addon.xml; \
 
-	# Next steps to release:
+	# Next steps to release (see docs/04-roadmap.md):
 	# - Modify the news-section of addons.xml
 	# - git add . && git commit -m "Prepare for v$(release)" && git push
 	# - git tag v$(release) && git push --tags
 else
 	@printf "Usage: make release release=1.0.0\n"
 endif
-
-multizip: clean
-	@-$(foreach abi,$(KODI_PYTHON_ABIS), \
-		printf "cd /addon/requires/import[@addon='xbmc.python']/@version\nset $(abi)\nsave\nbye\n" | xmllint --shell addon.xml; \
-		matrix=$(findstring $(abi), $(word 1,$(KODI_PYTHON_ABIS))); \
-		if [ $$matrix ]; then version=$(version)+matrix.1; else version=$(version); fi; \
-		printf "cd /addon/@version\nset $$version\nsave\nbye\n" | xmllint --shell addon.xml; \
-		make build; \
-	)

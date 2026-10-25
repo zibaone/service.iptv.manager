@@ -10,24 +10,17 @@ on:
 jobs:
   tests:
     name: Add-on testing
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest ]
-        python-version: [ 3.7, 3.8, 3.9 ]
-        include:
-          # Kodi Matrix on Windows uses a bundled Python 3.8, but we test 3.9 also to be sure.
-          - os: windows-latest
-            python-version: 3.8
-          - os: windows-latest
-            python-version: 3.9
+        python-version: [ "3.11", "3.12" ]
     steps:
       - name: Check out ${{ github.sha }} from repository ${{ github.repository }}
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -38,26 +31,12 @@ jobs:
         run: make check-pylint
 
       - name: Check translations
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
+        if: matrix.python-version == '3.12'
         run: sudo apt-get install gettext && make check-translations
 
       - name: Run unit tests
         env:
-          ADDON_USERNAME: ${{ secrets.ADDON_USERNAME }}
-          ADDON_PASSWORD: ${{ secrets.ADDON_PASSWORD }}
           PYTHONIOENCODING: utf-8
           KODI_HOME: ${{ github.workspace }}/tests/home
           KODI_INTERACTIVE: 0
-          KODI_STUB_RPC_RESPONSES: ${{ github.workspace }}/tests/rpc
-          HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
         run: pytest -v --cov=./ --cov-report=xml tests
-
-      - name: Upload code coverage to CodeCov
-        uses: codecov/codecov-action@v1
-        continue-on-error: true
-        env:
-          OS: ${{ matrix.os }}
-          PYTHON: ${{ matrix.python-version }}
-        with:
-          flags: unittests
-          env_vars: OS,PYTHON

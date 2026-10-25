@@ -14,14 +14,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kodi-version: [ matrix ]
+        # Omega is the Kodi 21 branch. Kodi 22 (Piers) exposes the same Python 3
+        # API, so the check runs against Omega until the checker supports Piers.
+        kodi-version: [ omega ]
     steps:
       - name: Check out ${{ github.sha }} from repository ${{ github.repository }}
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Run kodi-addon-checker
         uses: xbmc/action-kodi-addon-checker@v1.2
         with:
           kodi-version: ${{ matrix.kodi-version }}
-          rewrite-for-matrix: true
           addon-id: ${{ github.event.repository.name }}
