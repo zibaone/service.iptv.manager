@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.2.9 (2026-10-26)
+
+HavenOS fork, data-integrity pass:
+
+- Record per-provider channel and program counts in `providers_state.json`,
+  written atomically; a missing or corrupt file means first boot.
+- Refuse to replace a good `playlist.m3u8` or `epg.xml` with a degraded pass:
+  the files keep their previous content and `last_refreshed` does not move.
+- Accept a real decrease after three consecutive identical losses; a pass with
+  no data at all never writes an empty playlist.
+- Retry an incomplete pass with a backoff of 15 minutes, then 1 hour, then
+  6 hours; a complete pass clears it. The service loop consults it before the
+  refresh interval.
+- Count the programs of a raw XMLTV payload without copying it.
+- 65 unit tests, `pylint` clean, 82 % coverage.
+
 ## v0.2.8 (2026-10-26)
 
 HavenOS fork, reliability pass:

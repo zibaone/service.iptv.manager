@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.iptv.manager" name="IPTV Manager" version="0.2.8" provider-name="peno64, Michaël Arnauts">
+<addon id="service.iptv.manager" name="IPTV Manager" version="0.2.9" provider-name="peno64, Michaël Arnauts">
     <requires>
         <import addon="xbmc.python" version="3.0.0"/>
         <import addon="script.module.dateutil" version="2.6.0"/>
@@ -32,7 +32,12 @@
         <description lang="el_GR">Το πρόσθετο αυτο ενσωματώνει τα κανάλια IPTV από άλλα πρόσθετα στο PVR του Kodi.</description>
         <platform>all</platform>
         <license>GPL-3.0-only</license>
-        <news>v0.2.8 (2026-10-26)
+        <news>v0.2.9 (2026-10-26)
+- Keep the previous playlist and guide when a provider returns no data.
+- Record per-provider counts and accept a real decrease after three failed passes.
+- Retry an incomplete pass after 15 minutes, then 1 hour, then 6 hours.
+
+v0.2.8 (2026-10-26)
 - Wait for the PVR to stop before restarting IPTV Simple, and postpone the restart during playback.
 - Keep the service running when a pass fails, and read numeric settings through the typed API.
 - Decode provider payloads incrementally, bound the socket read, stream raw XMLTV.
