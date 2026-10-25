@@ -16,12 +16,26 @@ from unittest import mock
 import pytest
 
 from resources.lib import kodiutils
+from resources.lib.modules.iptvsimple import IptvSimple
 from resources.lib.service import BackgroundService
 
 
 @unittest.skipIf(sys.platform.startswith("win"), 'Skipping on Windows.')
 class TestService(unittest.TestCase):
     """ Tests for the background service """
+
+    def test_service_survives_a_failed_refresh(self):
+        """A refresh that raises must not stop the loop (Kodi 22 Invalid setting type)."""
+        with mock.patch.object(BackgroundService, 'abortRequested', return_value=False), \
+                mock.patch.object(BackgroundService, 'waitForAbort', return_value=True), \
+                mock.patch.object(BackgroundService, '_is_refresh_required', return_value=True), \
+                mock.patch.object(IptvSimple, 'is_configured', return_value=True), \
+                mock.patch('resources.lib.service.Addon.refresh',
+                           side_effect=RuntimeError('Invalid setting type')) as refresh:
+            with self.assertLogs('resources.lib.service', level='ERROR'):
+                BackgroundService().run()
+
+        self.assertEqual(refresh.call_count, 1)
 
     @staticmethod
     def test_is_refresh_required():

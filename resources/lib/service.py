@@ -36,16 +36,21 @@ class BackgroundService(Monitor):
 
         # Service loop
         while not self.abortRequested():
-            # Check if we need to do an update
-            if self._is_refresh_required():
-                Addon.refresh()
+            try:
+                # Check if we need to do an update
+                if self._is_refresh_required():
+                    Addon.refresh()
 
-            # Check if IPTV Simple needs to be restarted
-            if IptvSimple.verify_at is not None:
-                IptvSimple.check_started()
+                # Check if IPTV Simple needs to be restarted
+                if IptvSimple.verify_at is not None:
+                    IptvSimple.check_started()
 
-            if IptvSimple.restart_required:
-                IptvSimple.restart()
+                if IptvSimple.restart_required:
+                    IptvSimple.restart()
+            except Exception:  # pylint: disable=broad-except
+                # A failed pass must never end the service. On Kodi 22 an
+                # unwritable setting used to raise here and stop the loop (F-11).
+                _LOGGER.exception('Unhandled error during a pass; the service continues')
 
             # Stop when abort requested
             if self.waitForAbort(30):
