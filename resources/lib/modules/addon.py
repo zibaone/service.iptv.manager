@@ -8,11 +8,11 @@ import codecs
 import json
 import logging
 import os
-import re
 import socket
 import time
 
 from resources.lib import kodiutils
+from resources.lib.modules import xmltv
 from resources.lib.modules.iptvsimple import IptvSimple
 
 _LOGGER = logging.getLogger(__name__)
@@ -192,7 +192,7 @@ class Addon:
 
         return channels
 
-    def get_epg(self):
+    def get_epg(self):  # pylint: disable=too-many-return-statements
         """Get epg data from this add-on"""
         if not self.epg_uri:
             return {}
@@ -207,7 +207,11 @@ class Addon:
 
         # Return XMLTV-format as-is without headers and footers
         if not isinstance(data, dict):
-            return re.search(r'<tv[^>]*>(.*)</tv>', data, flags=re.DOTALL).group(1).strip()
+            try:
+                return xmltv.parse(data)
+            except ValueError as exc:
+                _LOGGER.error('Invalid XMLTV from %s: %s', self.addon_id, exc)
+                return {}
 
         # JSON-EPG format
         if data.get('version', 1) > EPG_VERSION:

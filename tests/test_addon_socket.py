@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for the provider socket reader"""
 
-# pylint: disable=invalid-name,missing-docstring,no-self-use
+# pylint: disable=invalid-name,missing-docstring,no-self-use,protected-access
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
@@ -25,7 +25,7 @@ class FakeConnection:
     def settimeout(self, value):
         self.timeout = value
 
-    def recv(self, size):
+    def recv(self, _size):
         if not self.chunks:
             return b''
         item = self.chunks.pop(0)

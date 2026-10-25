@@ -16,6 +16,7 @@ import dateutil.parser
 import dateutil.tz
 
 from resources.lib import kodiutils
+from resources.lib.modules.xmltv import RawXmltv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -284,7 +285,13 @@ class IptvSimple:
                         fdesc.write('</channel>\n'.encode('utf-8'))
 
             for epg in epg_list:
-                # RAW XMLTV data
+                # RAW XMLTV data, streamed so the guide is not copied in memory
+                if isinstance(epg, RawXmltv):
+                    for chunk in epg.iter_chunks():
+                        fdesc.write(chunk.encode('utf-8'))
+                    fdesc.write('\n'.encode('utf-8'))
+                    continue
+
                 if not isinstance(epg, dict):
                     fdesc.write(epg.encode('utf-8'))
                     fdesc.write('\n'.encode('utf-8'))
