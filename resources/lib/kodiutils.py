@@ -137,41 +137,84 @@ def get_setting(key, default=None):
     return value
 
 
-def get_setting_bool(key, default=None):
-    """Get an add-on setting as boolean"""
+def _typed_settings():
+    """Return the typed settings wrapper (Kodi 20+), or None on older releases."""
+    getter = getattr(ADDON, 'getSettings', None)
+    if getter is None:
+        return None
     try:
-        return ADDON.getSettingBool(key)
-    except (AttributeError, TypeError):  # On Krypton or older, or when not a boolean
-        value = get_setting(key, default)
-        if value not in ('false', 'true'):
-            return default
-        return bool(value == 'true')
-    except RuntimeError:  # Occurs when the add-on is disabled
-        return default
+        return getter()
+    except (AttributeError, RuntimeError):
+        return None
+
+
+def get_setting_bool(key, default=None):
+    """Get an add-on setting as boolean.
+
+    The legacy read comes first: a boolean that is not declared in settings.xml
+    makes the typed getter log an error, while the string read stays silent
+    (Kodi 22 lessons, 2026-10-06).
+    """
+    value = get_setting(key, None)
+    if value in ('false', 'true'):
+        return value == 'true'
+
+    settings = _typed_settings()
+    if settings is not None:
+        try:
+            return settings.getBool(key)
+        except (AttributeError, TypeError, RuntimeError):
+            pass
+    return default
 
 
 def get_setting_int(key, default=None):
-    """Get an add-on setting as integer"""
-    # ADDON.getSettingInt(key) doesn't work in Leia for settings without "number"
+    """Get an add-on setting as integer.
+
+    Kodi 22 refuses to read an integer setting through the string API, so the
+    typed getter is tried first. A setting declared as a select raises on the
+    typed getter; the string value then applies.
+    """
+    settings = _typed_settings()
+    value = None
+    if settings is not None:
+        try:
+            value = settings.getInt(key)
+        except (AttributeError, TypeError, RuntimeError, ValueError):
+            value = None
+
+    if value:
+        return value
+
+    # Missing typed getter, refused type, or a 0 that may be a select read as
+    # an integer by a Kodi that does not validate types.
     try:
-        return int(get_setting(key, default))
-    except ValueError:  # Occurs when not an integer
-        return default
-    except RuntimeError:  # Occurs when the add-on is disabled
-        return default
+        legacy = int(get_setting(key, None))
+    except (TypeError, ValueError, RuntimeError):
+        legacy = None
+
+    if value == 0 and legacy:
+        return legacy
+    if value is not None:
+        return value
+    if legacy is not None:
+        return legacy
+    return default
 
 
 def get_setting_float(key, default=None):
-    """Get an add-on setting"""
-    try:
-        return ADDON.getSettingNumber(key)
-    except (AttributeError, TypeError):  # On Krypton or older, or when not a float
-        value = get_setting(key, default)
+    """Get an add-on setting as float"""
+    settings = _typed_settings()
+    if settings is not None:
         try:
-            return float(value)
-        except ValueError:
-            return default
-    except RuntimeError:  # Occurs when the add-on is disabled
+            return settings.getNumber(key)
+        except (AttributeError, TypeError, RuntimeError, ValueError):
+            pass
+
+    value = get_setting(key, default)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
         return default
 
 
@@ -184,7 +227,7 @@ def set_setting_bool(key, value):
     """Set an add-on setting as boolean"""
     try:
         return ADDON.setSettingBool(key, value)
-    except (AttributeError, TypeError):  # On Krypton or older, or when not a boolean
+    except (AttributeError, TypeError, RuntimeError):  # On Krypton or older, or when not a boolean
         if value in ['false', 'true']:
             return set_setting(key, value)
         if value:
@@ -193,18 +236,29 @@ def set_setting_bool(key, value):
 
 
 def set_setting_int(key, value):
-    """Set an add-on setting as integer"""
+    """Set an add-on setting as integer
+
+    Kodi 22 raises "Invalid setting type" when the declared type does not match.
+    Both writers are tried, and the failure never escapes: a service must not
+    stop because one setting could not be written.
+    """
     try:
         return ADDON.setSettingInt(key, value)
-    except (AttributeError, TypeError):  # On Krypton or older, or when not an integer
+    except (AttributeError, TypeError, RuntimeError):  # On Krypton or older, or when not an integer
+        pass
+
+    try:
         return set_setting(key, value)
+    except RuntimeError:  # Occurs when the add-on is disabled or the type mismatches
+        _LOGGER.warning('Could not write setting %s', key)
+        return None
 
 
 def set_setting_float(key, value):
-    """Set an add-on setting"""
+    """Set an add-on setting as float"""
     try:
         return ADDON.setSettingNumber(key, value)
-    except (AttributeError, TypeError):  # On Krypton or older, or when not a float
+    except (AttributeError, TypeError, RuntimeError):  # On Krypton or older, or when not a float
         return set_setting(key, value)
 
 
