@@ -4,6 +4,7 @@
 from __future__ import absolute_import, division, unicode_literals
 
 import sys
+import codecs
 import json
 import logging
 import os
@@ -18,6 +19,11 @@ _LOGGER = logging.getLogger(__name__)
 
 CHANNELS_VERSION = 1
 EPG_VERSION = 1
+
+# A provider that accepts the connection but never sends anything must not block
+# the whole refresh (see docs/02-correctifs.md, F-05).
+READ_TIMEOUT = 120
+MAX_REPLY_SIZE = 64 * 1024 * 1024
 
 
 def update_qs(url, **params):
@@ -263,6 +269,7 @@ class Addon:
         # The remote and should connect back as soon as possible so we know that the request is being processed
         sock.settimeout(timeout)
 
+        conn = None
         try:
             _LOGGER.debug('Waiting for a connection from %s on port %s...', self.addon_id, sock.getsockname()[1])
 
@@ -270,16 +277,26 @@ class Addon:
             conn, addr = sock.accept()
             _LOGGER.debug('Connected to %s:%s! Waiting for result...', addr[0], addr[1])
 
-            # We have no timeout when the connection is established
-            conn.settimeout(None)
+            # A provider may connect and then say nothing: bound the read.
+            conn.settimeout(READ_TIMEOUT)
 
-            # Read until the remote end closes the connection
-            buf = ''
+            # Read until the remote end closes the connection. Decode with a
+            # streaming decoder: a UTF-8 character can span two recv() calls.
+            decoder = codecs.getincrementaldecoder('utf-8')()
+            chunks = []
+            size = 0
             while True:
                 chunk = conn.recv(4096)
                 if not chunk:
                     break
-                buf += chunk.decode()
+                size += len(chunk)
+                if size > MAX_REPLY_SIZE:
+                    raise Exception('Reply from %s is larger than %d bytes' % (self.addon_id, MAX_REPLY_SIZE))
+                chunks.append(decoder.decode(chunk))
+
+            chunks.append(decoder.decode(b'', True))
+            buf = ''.join(chunks)
+            _LOGGER.debug('Received %d bytes from %s', size, self.addon_id)
 
             if not buf:
                 # We got an empty reply, this means that something didn't go according to plan
@@ -288,9 +305,12 @@ class Addon:
             return buf
 
         except socket.timeout:
-            raise Exception('Timout waiting for reply on port %s' % sock.getsockname()[1])
+            raise Exception('Timeout waiting for reply on port %s' % sock.getsockname()[1])
 
         finally:
+            if conn is not None:
+                conn.close()
+
             # Close our socket
             _LOGGER.debug('Closing socket on port %s', sock.getsockname()[1])
             sock.close()
