@@ -12,6 +12,9 @@ This Service Add-on allows supported IPTV Add-ons to integrates their Live TV an
 > IPTV Simple restart on Kodi 22, one retry when a provider misses the socket
 > timeout, and atomic playlist/EPG replacement. No feature work is planned
 > here.
+>
+> Maintenance plan, fix backlog, upstream triage and test protocol live in
+> [`docs/`](docs/README.md). Read `docs/01-charte.md` before changing anything.
 
 IPTV Manager will periodically poll those Add-ons for Channels and EPG data, and generate a new M3U playlist and
 XMLTV file that the Kodi PVR Addon [IPTV Simple](https://github.com/kodi-pvr/pvr.iptvsimple) can use. IPTV Manager
