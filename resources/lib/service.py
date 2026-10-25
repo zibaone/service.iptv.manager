@@ -41,6 +41,9 @@ class BackgroundService(Monitor):
                 Addon.refresh()
 
             # Check if IPTV Simple needs to be restarted
+            if IptvSimple.verify_at is not None:
+                IptvSimple.check_started()
+
             if IptvSimple.restart_required:
                 IptvSimple.restart()
 

@@ -23,15 +23,26 @@ IPTV_SIMPLE_ID = 'pvr.iptvsimple'
 IPTV_SIMPLE_PLAYLIST = 'playlist.m3u8'
 IPTV_SIMPLE_EPG = 'epg.xml'
 
-# Kodi 22 needs more than one second to stop PVR IPTV Simple. Disabling and
-# re-enabling it too quickly leaves the PVR client stopped (seen on HavenOS).
-RESTART_DELAY = 8
+# Kodi 22 stops the PVR manager asynchronously: disabling and re-enabling IPTV
+# Simple too early leaves the PVR client stopped. Poll the PVR state instead of
+# guessing with a fixed delay (see docs/02-correctifs.md, F-01).
+PVR_STOP_TIMEOUT = 60
+PVR_STOP_MARGIN = 2
+PVR_START_GRACE = 30
+
+PLAYING_CONDITIONS = (
+    'Pvr.IsPlayingTv',
+    'Pvr.IsPlayingRadio',
+    'Player.HasVideo',
+    'PVR.IsRecording',
+)
 
 
 class IptvSimple:
     """Helper class to setup IPTV Simple"""
 
     restart_required = False
+    verify_at = None
 
     def __init__(self):
         """Init"""
@@ -49,9 +60,6 @@ class IptvSimple:
         except Exception as exc:  # pylint: disable=broad-except
             _LOGGER.warning('Could not setup IPTV Simple: %s', str(exc))
             return False
-
-        # Deactivate IPTV Simple to hide the "Needs to be restarted" messages
-        cls._deactivate()
 
         # Configure IPTV Simple
         output_dir = kodiutils.addon_profile()
@@ -71,10 +79,12 @@ class IptvSimple:
         addon.setSetting('allChannelsCatchupMode', '1')
         addon.setSetting('catchupOnlyOnFinishedProgrammes', 'false')
 
-        # Activate IPTV Simple
-        cls._activate()
+        # Apply the settings through the safe restart path: Kodi 22 needs the
+        # PVR manager to stop before IPTV Simple is re-enabled.
+        if not cls.restart(force=True):
+            _LOGGER.info('IPTV Simple is configured; its restart is postponed or pending')
 
-        # If iptv simple uses another name than settings.cml for the configuration file then copy the generated settings.xml to that other name
+        # If iptv simple uses another name than settings.xml for the configuration file then copy the generated settings.xml to that other name
         path = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
         settingsxml = path + 'settings.xml'
         if os.path.isfile(settingsxml):
@@ -104,19 +114,86 @@ class IptvSimple:
 
     @classmethod
     def restart(cls, force=False):
-        """Restart IPTV Simple"""
-        if not force and (kodiutils.get_cond_visibility('Pvr.IsPlayingTv') or kodiutils.get_cond_visibility('Pvr.IsPlayingRadio')):
-            # Don't restart when we are Playing TV or Radio
+        """Restart IPTV Simple without leaving the PVR manager stopped.
+
+        ``force`` no longer bypasses the playback guard: a restart during
+        playback stops the playback (upstream issues #84 and #89).
+        """
+        _LOGGER.debug('Restart of IPTV Simple requested (force=%s)', force)
+
+        if cls._is_playing():
             cls.restart_required = True
-            _LOGGER.debug('Postponing restart of Simple IPTV since it is currently in use.')
-            return
+            _LOGGER.info('Postponing restart of Simple IPTV since it is currently in use')
+            return False
 
         cls.restart_required = False
+        cls.verify_at = None
 
         cls._deactivate()
-        _LOGGER.debug('Waiting %d seconds for IPTV Simple to stop...', RESTART_DELAY)
-        time.sleep(RESTART_DELAY)
+
+        if not cls._wait_for_pvr_stopped():
+            _LOGGER.warning('IPTV Simple did not stop within %d seconds; not re-enabling it yet',
+                            PVR_STOP_TIMEOUT)
+            cls.restart_required = True
+            return False
+
+        # Give the PVR manager a moment once the client has disappeared.
+        time.sleep(PVR_STOP_MARGIN)
+
         cls._activate()
+        cls.verify_at = time.time() + PVR_START_GRACE
+        _LOGGER.debug('IPTV Simple re-enabled; checking that it starts in %d seconds', PVR_START_GRACE)
+        return True
+
+    @classmethod
+    def check_started(cls):
+        """Check that IPTV Simple came back after a restart, and retry if not."""
+        if cls.verify_at is None or time.time() < cls.verify_at:
+            return
+
+        cls.verify_at = None
+        if cls._pvr_available() is True:
+            _LOGGER.debug('IPTV Simple is running again')
+            return
+
+        _LOGGER.warning('IPTV Simple did not start after a restart; scheduling another attempt')
+        cls.restart_required = True
+
+    @staticmethod
+    def _is_playing():
+        """Return True when Kodi is playing TV, radio, video or a recording."""
+        for condition in PLAYING_CONDITIONS:
+            if kodiutils.get_cond_visibility(condition):
+                return True
+        return False
+
+    @staticmethod
+    def _pvr_available():
+        """Return True/False when the PVR state is known, None when it is not."""
+        try:
+            result = kodiutils.jsonrpc(method='PVR.GetProperties', params={'properties': ['available']})
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.debug('Could not read the PVR state', exc_info=True)
+            return None
+
+        if not isinstance(result, dict):
+            return None
+        if result.get('error'):
+            # The PVR manager answers with an error while it is stopped.
+            return False
+        payload = result.get('result')
+        if not isinstance(payload, dict):
+            return None
+        return payload.get('available')
+
+    @classmethod
+    def _wait_for_pvr_stopped(cls, timeout=PVR_STOP_TIMEOUT):
+        """Wait until the PVR manager no longer reports an available client."""
+        for _ in range(timeout):
+            if cls._pvr_available() is not True:
+                return True
+            time.sleep(1)
+        return False
 
     @staticmethod
     def _activate():
