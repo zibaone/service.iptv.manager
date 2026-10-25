@@ -8,3 +8,5 @@ tests/ export-ignore
 codecov.yml export-ignore
 Makefile export-ignore
 requirements.txt export-ignore
+flake.nix export-ignore
+flake.lock export-ignore
