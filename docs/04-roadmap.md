@@ -1,16 +1,20 @@
 # 04 — Roadmap, releases et déploiement
 
-## 0. État au 25/10/2026 (soir)
+## 0. État au 26/10/2026
 
-Vingt commits au-dessus de `d107225` : documentation (`efff4c7`, `70057c6`,
-`569e401`, `33520e2`, `76170c5`, `6bd5d5a`, `d050d2f`), cibles Kodi 21/22
-(`b13b47d`), F-01 (`e45e2d7`), F-05 (`5938c20`), F-06 (`1c9ce2e`), zip sans
-fichiers de développement (`7505b0e`), F-11 (`8ed7430`, `e5ca547`), release 0.2.8
+Vingt-deux commits au-dessus de `d107225`, tous poussés sur GitHub (`master`,
+tags `v0.2.6` → `v0.2.11`) : documentation (`efff4c7`, `70057c6`, `569e401`,
+`33520e2`, `76170c5`, `6bd5d5a`, `d050d2f`), cibles Kodi 21/22 (`b13b47d`),
+F-01 (`e45e2d7`), F-05 (`5938c20`), F-06 (`1c9ce2e`), zip sans fichiers de
+développement (`7505b0e`), F-11 (`8ed7430`, `e5ca547`), release 0.2.8
 (`c19900d`), F-02 (`d7bbdc8`), F-03 (`e4f0e39`), F-04 (`9c67c48`), releases
-0.2.9 (`266512e`) et 0.2.10 (`579c300`). 72 tests verts, `pylint` 10/10,
-couverture 82 %.
+0.2.9 (`266512e`) et 0.2.10 (`579c300`), puis la passe de terrain du 26/10 :
+`d7a5fc9` (F-12 fournisseur dormant, F-13 réécriture sans changement, F-11
+amendé pour Kodi 21) et `02bfd70` (release 0.2.11). **78 tests verts**,
+`pylint` 10/10 ; couverture non remesurée le 26/10 (le run `--cov` du harnais
+se bloque), dernière mesure connue 82 % à 72 tests.
 
-Le même soir, deux constats ont changé le plan :
+Le 25/10 au soir, deux constats ont changé le plan :
 
 - sur Kodi 22, le service s'arrête à l'écriture de `last_refreshed`
   (`07-incident-kodi22-service.md`) : c'est `F-11`, prioritaire sur tout le
@@ -18,18 +22,31 @@ Le même soir, deux constats ont changé le plan :
 - dépendre de `script.module.tv_common` est écarté (`06-tv-common.md`) : on
   emprunte le motif de lecture typée, rien de plus.
 
-Le lot 1 est donc scindé en trois releases. Une release par mode de panne, pour
-que la vérification sur box désigne un seul coupable.
+Le lot 1 est donc scindé en quatre releases (0.2.8 à 0.2.11), une par mode de
+panne, pour que la vérification sur box désigne un seul coupable.
 
-La 0.2.8 est construite : version et `news` dans `addon.xml`, section datée du
-`CHANGELOG`, zip relu (43 fichiers, version 0.2.8, sans `tests/`, `docs/`,
-`flake.nix` ni `.github/`), tag `v0.2.8` créé localement. Rien n'est poussé ni
-publié. Les trois releases sont construites : la 0.2.9 depuis `d050d2f` plus un
-commit de release (branche `release/0.2.9`, pour n'emporter que `F-02`/`F-03`),
-la 0.2.10 depuis `master` (`F-04` en plus). Leurs zips sont déposés dans le
-dépôt d'artefacts `zibaone/tv-addons-repo`, sous `service.iptv.manager/`. Il
-reste la vérification sur une box Kodi 22 avec le protocole de
-`07-incident-kodi22-service.md` §6.
+**Mesure du 26/10 sur la Zero 3 (Kodi 21.3)** — première vérification sur une
+box réelle. La 0.2.10 passe (569 chaînes, guide réécrit, `providers_state.json`,
+restart d'IPTV Simple vérifié à +30 s, instances PVR préservées) mais révèle
+trois défauts, corrigés en 0.2.11 :
+
+- `F-12` : un fournisseur installé sans identifiants (xtream) rend zéro donnée à
+  chaque passe ; il maintenait le statut `partial`, donc `last_refreshed`
+  n'avançait jamais et le service relançait une passe 15 min, 1 h puis 6 h plus
+  tard avec un restart du PVR à chaque fois ;
+- `F-13` : playlist et guide étaient réécrits et le PVR relancé même quand le
+  contenu ne changeait pas ;
+- `F-11` (amendement) : `type="integer"` n'existe pas dans le format de
+  réglages que Kodi 21 parse encore ; `last_refreshed` n'était pas créé et
+  l'API typée levait `Invalid setting type` à chaque tick.
+
+Les zips 0.2.8 → 0.2.11 sont déposés dans le monorepo d'addons
+(`tv-addons/external/service.iptv.manager/`, md5 à côté de chaque zip) : le
+workflow `release.yml` ne produit pas d'asset sur ce dépôt, les zips sont donc
+construits localement (`git archive`, mêmes exclusions `.gitattributes`).
+Reste la vérification sur une box **Kodi 22** avec le protocole de
+`07-incident-kodi22-service.md` §6, en particulier l'absence de
+`Invalid setting type` et l'écriture de `last_refreshed`.
 
 ## 1. Vue d'ensemble
 
@@ -38,7 +55,8 @@ reste la vérification sur une box Kodi 22 avec le protocole de
 | **0** | `0.2.7` | Documentation, assainissement du dépôt, tags | **Fait** : `addon.xml` installable tel quel, CI qui ne soumet plus au dépôt officiel, tags `v0.2.6` et `v0.2.7` créés. |
 | **1a** | `0.2.8` | **Fait, tagué** — `F-01`, `F-05`, `F-06`, `F-11` réglages typés et service résilient | Sur une box Kodi 22 : aucune occurrence de `Invalid setting type`, `last_refreshed` écrit, service toujours actif au tour suivant, PVR `Started`. |
 | **1b** | `0.2.9` | **Fait dans `master`** — `F-02` écriture anti-régression, `F-03` reprise avec backoff : ils partagent le même fichier d'état et la même fonction `refresh()` | Fournisseur coupé : `playlist.m3u8` et `epg.xml` inchangés (md5 identiques), retry dans le quart d'heure, reprise normale ensuite. |
-| **1c** | `0.2.10` | **Fait dans `master`** — `F-04` setup vérifié, instances préservées | Installation neuve : chaînes présentes ; installation déjà configurée : aucun réglage ni aucune instance écrasés. |
+| **1c** | `0.2.10` | **Fait, publié** — `F-04` setup vérifié, instances préservées | Installation neuve : chaînes présentes ; installation déjà configurée : aucun réglage ni aucune instance écrasés. |
+| **1d** | `0.2.11` | **Fait, tagué, déployé sur la Zero 3** — `F-12` fournisseur dormant neutre, `F-13` réécriture et restart seulement si le contenu change, `F-11` amendé (types acceptés par Kodi 21) | Zero 3 : zéro `Invalid setting type`, `last_refreshed` écrit, `_meta.retry_after: 0`, EPG identique laissé intact, PVR non relancé sans changement. |
 | **2** | `0.3.0` | `F-07` boot différé, `F-08` diagnostic, `F-10` catchup, refresh d'un fournisseur (#95), format `settings.xml` (#11) | `state.json` lisible, catchup dans les trois modes, refresh d'un seul fournisseur. |
 | **3** | décision | Sources externes (#67) | **Non planifié** : rejeté par la charte. |
 
@@ -53,7 +71,7 @@ passer au suivant. Aucun lot ne démarre sans les tests du précédent au vert.
    et `ci.yml` alignés sur Kodi 21/22 et Python 3.11/3.12.
 2. `release.yml` : plus de soumission au dépôt officiel, seulement la release
    GitHub et l'attachement du zip.
-3. Tags `v0.2.6` et `v0.2.7` créés localement, à pousser avec la branche.
+3. Tags `v0.2.6` → `v0.2.11` poussés avec la branche.
 4. `README.md` : badges du fork.
 5. Zip de release : ni `tests/`, ni `flake.nix`, ni `.github/`.
 
