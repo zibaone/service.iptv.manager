@@ -11,8 +11,10 @@ dossier.
 nix develop --command bash -c 'export KODI_HOME="$PWD/tests/home" KODI_INTERACTIVE=0; pytest -q tests'
 ```
 
-État de référence au 26/10/2026 : **72 tests passés en 8 s**, couverture 82 % au
-total — `modules/addon.py` 91 %, `modules/iptvsimple.py` 87 %,
+État de référence au 26/10/2026 : **78 tests passés en 8 s**. La couverture
+n'a pas été remesurée ce jour-là : le run `--cov` du harnais se bloque (deux
+essais, 400 s et 200 s), à instruire. Dernière mesure connue, 72 tests le
+25/10 : 82 % au total — `modules/addon.py` 91 %, `modules/iptvsimple.py` 87 %,
 `modules/state.py` 97 %, `modules/xmltv.py` 91 %, `service.py` 91 %,
 `kodiutils.py` 62 %. Les zones non couvertes de `kodiutils.py` et
 `functions.py` sont de la glu Kodi et des routes d'interface : les stubs ne

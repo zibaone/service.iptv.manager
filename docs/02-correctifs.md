@@ -40,6 +40,29 @@ construites, pour que chaque version couvre un seul mode de panne. Prochaine
 (`07-incident-kodi22-service.md` §6), puis construire 0.2.9 et 0.2.10. Les
 raisons de cet ordre sont en `04-roadmap.md` §1.
 
+## État après la passe du 26/10/2026 (mesure sur box Kodi 21)
+
+La 0.2.10 a tourné sur l'Orange Pi Zero 3 (`kodi-21.3`, cinq fournisseurs,
+`pvr.iptvsimple` 21.10.2). La passe complète fonctionne — 569 chaînes, guide
+réécrit, `providers_state.json` créé, restart d'IPTV Simple vérifié à +30 s —
+mais trois défauts de terrain sont apparus, corrigés en 0.2.11 (`d7a5fc9`) :
+
+- `F-12` — un fournisseur installé sans identifiants (xtream) rend zéro chaîne
+  et zéro guide à chaque passe : `state.evaluate()` le comptait comme un
+  problème, donc **toutes** les passes restaient `partial`, `last_refreshed`
+  n'avançait jamais et le service relançait une passe toutes les 15 min, 1 h
+  puis 6 h, avec un restart du PVR à chaque fois.
+- `F-13` — une collection réécrite à l'identique déclenchait quand même le
+  restart d'IPTV Simple (mesuré : `epg.xml` md5 inchangé, PVR arrêté/relancé).
+- `F-11` — `type="integer"` n'existe pas dans le format de réglages que Kodi 21
+  parse encore : le réglage n'était pas créé (`failed to parse old setting
+  definition` à chaque démarrage) et l'API typée levait `Invalid setting type`
+  sur le `select` `refresh_interval` à chaque tour de boucle. L'ordre est
+  inversé (chaîne d'abord, typée en repli) et `last_refreshed` repasse en
+  `type="text"` caché.
+
+Tests : 78 unitaires verts, pylint 10.00/10.
+
 ## Tableau de synthèse
 
 | ID | Priorité | Statut au 25/10/2026 | Version cible |
@@ -48,10 +71,12 @@ raisons de cet ordre sont en `04-roadmap.md` §1.
 | F-05 | P1 | **Corrigé** (`5938c20`) | 0.2.8 |
 | F-06 | P1 | **Corrigé** (`1c9ce2e`) | 0.2.8 |
 | F-09 | P1 | **Corrigé** (`b13b47d`) — tags `v0.2.6`/`v0.2.7` créés localement, à pousser | 0.2.8 |
-| F-11 | P0 | **Corrigé** (`8ed7430`, `e5ca547`) — vérification sur box Kodi 22 à faire | 0.2.8 |
+| F-11 | P0 | **Corrigé** (`8ed7430`, `e5ca547`) — **amendé le 26/10** (`d7a5fc9`) après mesure sur Kodi 21 | 0.2.8 / 0.2.11 |
 | F-02 | P0 | **Corrigé** (`d7bbdc8`), publié en 0.2.9 | 0.2.9 |
 | F-03 | P0 | **Corrigé** (`e4f0e39`), publié en 0.2.9 | 0.2.9 |
 | F-04 | P0/P1 | **Corrigé** (`9c67c48`), publié en 0.2.10 | 0.2.10 |
+| F-12 | P0 | **Corrigé** (`d7a5fc9`) — mesuré sur Zero 3 | 0.2.11 |
+| F-13 | P0 | **Corrigé** (`d7a5fc9`) — mesuré sur Zero 3 | 0.2.11 |
 | F-07 | P1 | Non commencé | 0.3.0 |
 | F-08 | P1 | Non commencé | 0.3.0 |
 | F-10 | P2 | Non commencé | 0.3.0 |
@@ -429,3 +454,100 @@ supérieur à zéro, service toujours actif au tour suivant, PVR intact.
 **Risque.** Un repli trop large masquerait une vraie erreur de schéma. Le repli
 doit logguer en `debug`, et seulement pour `RuntimeError`, `AttributeError` et
 `TypeError`.
+
+### Amendement du 26/10/2026 — l'ordre « typé d'abord » ne tient pas sur Kodi 21
+
+Mesuré sur la Zero 3 (`kodi-21.3`). `resources/settings.xml` est au format
+hérité (`<settings>` sans `version`), que Kodi 21 parse avec
+`CAddonSettings::InitializeFromOldSetting*`
+(`xbmc/addons/settings/AddonSettings.cpp`, branche `Omega`). Ce parseur ne
+connaît pas `integer` : `last_refreshed` n'était pas créé et Kodi loguait
+`failed to parse old setting definition for "last_refreshed" of type "integer"`
+à chaque démarrage. Un `select` sans `lvalues` devient une **chaîne**
+(`InitializeFromOldSettingSelect`), donc `getInt()` levait
+`EXCEPTION: Invalid setting type "integer" for "refresh_interval"` — Kodi logue
+l'exception avant de la lever — à chaque tour de boucle (deux lignes / 30 s).
+
+Conséquence : sur Kodi 21 `last_refreshed` n'était jamais écrit (une passe saine
+aurait donc rafraîchi toutes les 30 s) et le journal se remplissait d'erreurs.
+
+**Correctif (0.2.11).** `last_refreshed` repasse en `type="text" visible="false"`
+(un type que les deux parseurs connaissent) ; `get_setting_int` et
+`set_setting_int` lisent puis écrivent d'abord en chaîne, et n'appellent l'API
+typée qu'en repli (Kodi 22 refuse la lecture chaîne d'un entier). Les booléens
+gardent l'ordre hérité. Tests : `test_reads_the_string_api_first`,
+`test_falls_back_to_the_typed_api`, `test_set_writes_the_string_first`,
+`test_set_falls_back_to_the_typed_writer`, `test_missing_setting_returns_the_default`.
+
+**Acceptation sur Kodi 22** (reste à faire) : aucune ligne
+`Invalid setting type` sur une fenêtre couvrant une passe saine, et
+`last_refreshed` avance.
+
+## F-12 — Un fournisseur qui n'a jamais rien publié ne bloque pas le statut (P0)
+
+**Symptôme.** Sur la Zero 3, chaque passe finit `Pass is partial: last_refreshed
+not advanced`, `_meta.failures` s'incrémente et le service relance une passe
+15 min, 1 h puis 6 h plus tard, avec arrêt/relance du PVR à chaque fois. Le
+`playlist.m3u8` est réécrit à l'identique et le guide ne bouge pas : la boucle
+ne produit rien.
+
+**Cause.** `plugin.video.xtream` est installé sans identifiants (aucun
+`addon_data/plugin.video.xtream/settings.xml`), et son réglage
+`iptv.enabled` vaut `true` par défaut dès que `service.iptv.manager` est
+installé. Il répond donc zéro chaîne et zéro guide à chaque passe.
+`state.evaluate()` marquait `any_problem` pour tout fournisseur vide
+(`not channels and not programs`), même sans historique : la passe restait
+`partial` pour toujours.
+
+**Emplacement.** `resources/lib/modules/state.py`, `evaluate()`.
+
+**Correctif.** Un fournisseur vide n'est un problème que s'il avait déjà publié
+des données (cas déjà couvert par la règle des trois passes sur `dropped`). Un
+fournisseur dormant — installé sans compte, ou fonctionnalité désactivée côté
+fournisseur — est neutre.
+
+**Tests.** `test_empty_provider_on_a_first_pass_does_not_block_the_status`,
+`test_a_provider_that_never_had_data_stays_neutral`,
+`test_degraded_pass_keeps_the_previous_files` (non-régression),
+`test_three_consecutive_failures_accept_the_decrease` (non-régression).
+
+**Acceptation.** Sur la Zero 3 : `providers_state.json` porte
+`"plugin.video.xtream": {"channels": 0, "programs": 0, "failures": 0}`,
+`_meta.retry_after` vaut 0, `last_refreshed` avance et aucune passe ne repart
+avant l'intervalle de 24 h.
+
+**Risque.** Une panne fugace d'un fournisseur lors de la toute première passe
+n'est plus signalée par un retry rapproché : le prochain passage a lieu à
+l'intervalle normal. Assumé : sans historique, « vide » et « en panne » sont
+indiscernables.
+
+## F-13 — Une collection inchangée ne relance pas IPTV Simple (P0)
+
+**Symptôme.** Le PVR est arrêté et relancé à chaque passe alors que ni la
+playlist ni le guide n'ont changé (`epg.xml` md5 identique avant/après,
+`playlist.m3u8` réécrit à l'identique).
+
+**Cause.** `Addon.refresh()` appelait `IptvSimple.restart()` dès que la passe
+avait le droit d'écrire, sans regarder si les fichiers produits différaient des
+précédents.
+
+**Emplacement.** `resources/lib/modules/iptvsimple.py`
+(`write_playlist`, `write_epg`) et `resources/lib/modules/addon.py` (`refresh`).
+
+**Correctif.** Les deux écritures rendent `True` seulement quand le contenu
+diffère : `_replace_if_changed()` compare le fichier temporaire au fichier en
+place (taille puis blocs de 64 Kio), supprime le temporaire et laisse le
+fichier intact (mtime inchangé) s'ils sont identiques. `refresh()` ne relance
+IPTV Simple que si l'un des deux a changé.
+
+**Tests.** `test_identical_playlist_is_kept`, `test_changed_playlist_is_replaced`,
+`test_identical_epg_is_kept`, `test_unchanged_files_do_not_restart_iptv_simple`,
+`test_a_changed_playlist_restarts_iptv_simple`.
+
+**Acceptation.** Sur la Zero 3 : une passe qui ne change rien laisse
+`playlist.m3u8`/`epg.xml` intacts, logue `Playlist and guide unchanged; IPTV
+Simple is left running` et le PVR ne s'arrête pas.
+
+**Risque.** Un redémarrage volontaire d'IPTV Simple n'est plus obtenu par une
+passe forcée sans changement ; il reste disponible par le réglage de l'addon
+(`Addons.SetAddonEnabled`) ou un redémarrage de Kodi.

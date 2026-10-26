@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.2.11 (2026-10-26)
+
+HavenOS fork, field pass on the Zero 3 (Kodi 21.3):
+
+- A provider that never published anything (xtream, installed without
+  credentials) no longer blocks the status. It answered with no channel and no
+  guide on every pass; that kept every pass `partial`, `last_refreshed` never
+  advanced, and the service retried every 15 min, then 1 h, then 6 h, with a
+  PVR restart each time. Only losing data that was there is a problem, and the
+  three-strike rule already covers it.
+- The playlist and the guide are only replaced when their content changes, and
+  IPTV Simple is only restarted then. A pass that brings nothing new used to
+  stop and start the PVR for nothing.
+- Read and write numeric settings through the string API first, with the typed
+  API as fallback. On Kodi 21 `refresh_interval` is a `select` (a string), and
+  the typed getter raised `Invalid setting type` on every service tick;
+  `last_refreshed` goes back to a hidden `type="text"`, because `integer` is not
+  a type of the legacy settings format Kodi 21 still parses (the setting was
+  not created at all).
+- The devshell provides pylint, so `make check` is usable locally.
+- 78 unit tests, `pylint` 10.00/10.
+
 ## v0.2.10 (2026-10-26)
 
 HavenOS fork, setup pass:
