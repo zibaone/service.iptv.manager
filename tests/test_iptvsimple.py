@@ -11,7 +11,7 @@ import unittest
 from unittest import mock
 
 from resources.lib import kodiutils
-from resources.lib.modules.iptvsimple import IptvSimple
+from resources.lib.modules.iptvsimple import IPTV_SIMPLE_EPG, IPTV_SIMPLE_PLAYLIST, IptvSimple
 
 SLEEP = 'resources.lib.modules.iptvsimple.time.sleep'
 
@@ -413,6 +413,64 @@ class ProgramXmlTest(unittest.TestCase):
         self.assertNotIn('Broken', content)
         self.assertEqual(content.count('<programme '), 1)
         self.assertIn('<title>Good show</title>', content)
+
+
+class UnchangedCollectionTest(unittest.TestCase):
+    """A pass that brings nothing new must leave the files and the PVR alone"""
+
+    def setUp(self):
+        self.tempdir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
+        self.profile = self.tempdir.name + os.sep
+        self.channels = [{'addon_id': 'a', 'addon_name': 'A',
+                          'channels': [{'name': 'A', 'stream': 'http://a'}]}]
+        self.epg = [{'a': [{'start': '2026-10-26T10:00:00+01:00',
+                            'stop': '2026-10-26T11:00:00+01:00',
+                            'title': 'Show'}]}]
+
+    def tearDown(self):
+        self.tempdir.cleanup()
+
+    def write_playlist(self):
+        with mock.patch('resources.lib.modules.iptvsimple.kodiutils.addon_profile',
+                        return_value=self.profile):
+            return IptvSimple.write_playlist(self.channels)
+
+    def write_epg(self):
+        with mock.patch('resources.lib.modules.iptvsimple.kodiutils.addon_profile',
+                        return_value=self.profile):
+            return IptvSimple.write_epg(self.epg, self.channels)
+
+    def test_identical_playlist_is_kept(self):
+        """The second identical pass reports no change, keeps the mtime, removes the tmp."""
+        self.assertTrue(self.write_playlist())
+        path = os.path.join(self.profile, IPTV_SIMPLE_PLAYLIST)
+        before = os.stat(path).st_mtime_ns
+
+        self.assertFalse(self.write_playlist())
+
+        self.assertEqual(os.stat(path).st_mtime_ns, before)
+        self.assertFalse(os.path.exists(path + '.tmp'))
+
+    def test_changed_playlist_is_replaced(self):
+        """A real change is written and reported."""
+        self.assertTrue(self.write_playlist())
+        self.channels[0]['channels'][0]['stream'] = 'http://b'
+
+        self.assertTrue(self.write_playlist())
+
+        with open(os.path.join(self.profile, IPTV_SIMPLE_PLAYLIST), 'rb') as handle:
+            self.assertIn(b'http://b', handle.read())
+
+    def test_identical_epg_is_kept(self):
+        """The EPG follows the same rule."""
+        self.assertTrue(self.write_epg())
+        path = os.path.join(self.profile, IPTV_SIMPLE_EPG)
+        before = os.stat(path).st_mtime_ns
+
+        self.assertFalse(self.write_epg())
+
+        self.assertEqual(os.stat(path).st_mtime_ns, before)
+        self.assertFalse(os.path.exists(path + '.tmp'))
 
 
 if __name__ == '__main__':

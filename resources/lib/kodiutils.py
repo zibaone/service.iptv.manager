@@ -171,34 +171,25 @@ def get_setting_bool(key, default=None):
 def get_setting_int(key, default=None):
     """Get an add-on setting as integer.
 
-    Kodi 22 refuses to read an integer setting through the string API, so the
-    typed getter is tried first. A setting declared as a select raises on the
-    typed getter; the string value then applies.
+    The string read comes first. A select or text setting is a string on every
+    Kodi release, and Kodi 21 accepts the string read of any setting without
+    logging: the typed getter, tried first until 0.2.10, raised "Invalid
+    setting type" on a select and spammed kodi.log on every service tick
+    (Zero 3, 2026-10-26). Kodi 22 refuses the string read of an integer
+    setting instead; get_setting() then returns the default and the typed
+    getter applies.
     """
+    try:
+        return int(get_setting(key, None))
+    except (TypeError, ValueError):
+        pass
+
     settings = _typed_settings()
-    value = None
     if settings is not None:
         try:
-            value = settings.getInt(key)
+            return settings.getInt(key)
         except (AttributeError, TypeError, RuntimeError, ValueError):
-            value = None
-
-    if value:
-        return value
-
-    # Missing typed getter, refused type, or a 0 that may be a select read as
-    # an integer by a Kodi that does not validate types.
-    try:
-        legacy = int(get_setting(key, None))
-    except (TypeError, ValueError, RuntimeError):
-        legacy = None
-
-    if value == 0 and legacy:
-        return legacy
-    if value is not None:
-        return value
-    if legacy is not None:
-        return legacy
+            pass
     return default
 
 
@@ -238,18 +229,20 @@ def set_setting_bool(key, value):
 def set_setting_int(key, value):
     """Set an add-on setting as integer
 
-    Kodi 22 raises "Invalid setting type" when the declared type does not match.
-    Both writers are tried, and the failure never escapes: a service must not
-    stop because one setting could not be written.
+    The string write comes first, for the same reason as the read: a select or
+    text setting only accepts it and Kodi 21 logs nothing. Kodi 22 raises
+    "Invalid setting type" on an integer setting, and the typed writer then
+    applies. The failure never escapes: a service must not stop because one
+    setting could not be written.
     """
-    try:
-        return ADDON.setSettingInt(key, value)
-    except (AttributeError, TypeError, RuntimeError):  # On Krypton or older, or when not an integer
-        pass
-
     try:
         return set_setting(key, value)
     except RuntimeError:  # Occurs when the add-on is disabled or the type mismatches
+        pass
+
+    try:
+        return ADDON.setSettingInt(key, value)
+    except (AttributeError, TypeError, RuntimeError):
         _LOGGER.warning('Could not write setting %s', key)
         return None
 

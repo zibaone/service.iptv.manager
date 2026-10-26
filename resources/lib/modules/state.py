@@ -88,7 +88,12 @@ def evaluate(results, previous):
         }
         if channels or programs:
             any_data = True
-        if (dropped and not accepted) or not channels and not programs:
+        if dropped and not accepted:
+            # Only losing data that was there is a problem. A provider that
+            # never published anything (an add-on installed without
+            # credentials: xtream on the Zero 3) returned no channel and no
+            # guide on every pass; counting it kept every pass partial, which
+            # retried forever and restarted the PVR for nothing (2026-10-26).
             any_problem = True
 
     if not any_data:

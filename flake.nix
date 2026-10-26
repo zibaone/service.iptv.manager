@@ -46,6 +46,7 @@
             lxml
             polib
             mock
+            pylint
           ]
         );
     in

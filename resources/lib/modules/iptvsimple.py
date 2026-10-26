@@ -337,9 +337,9 @@ class IptvSimple:
         """Deactivate IPTV Simple"""
         kodiutils.jsonrpc(method="Addons.SetAddonEnabled", params={"addonid": IPTV_SIMPLE_ID, "enabled": False})
 
-    @staticmethod
-    def write_playlist(channels):
-        """Write playlist data"""
+    @classmethod
+    def write_playlist(cls, channels):
+        """Write playlist data, and return True when the file changed"""
         output_dir = kodiutils.addon_profile()
 
         # Make sure our output dir exists
@@ -383,11 +383,45 @@ class IptvSimple:
 
         # Move new file to the right place. os.replace() is atomic: readers
         # never see a missing playlist during a refresh.
-        os.replace(playlist_path + '.tmp', playlist_path)
+        return cls._replace_if_changed(playlist_path)
+
+    @staticmethod
+    def _same_content(path, tmp_path):
+        """Return True when the pending file holds exactly the current bytes."""
+        try:
+            if os.path.getsize(path) != os.path.getsize(tmp_path):
+                return False
+            with open(path, 'rb') as current, open(tmp_path, 'rb') as pending:
+                while True:
+                    left = current.read(65536)
+                    if left != pending.read(65536):
+                        return False
+                    if not left:
+                        return True
+        except OSError:
+            return False
+
+    @classmethod
+    def _replace_if_changed(cls, path):
+        """Replace ``path`` with ``path.tmp``, unless the content is identical.
+
+        Returns True when the file changed. A pass that brings nothing new
+        keeps the existing files untouched, which lets the caller skip the
+        IPTV Simple restart: an unchanged collection used to cost a PVR stop
+        and start on every pass (Zero 3, 2026-10-26).
+        """
+        tmp_path = path + '.tmp'
+        if cls._same_content(path, tmp_path):
+            os.remove(tmp_path)
+            return False
+
+        # os.replace() is atomic: readers never see a missing file.
+        os.replace(tmp_path, path)
+        return True
 
     @classmethod
     def write_epg(cls, epg_list, channels):
-        """Write EPG data"""
+        """Write EPG data, and return True when the file changed"""
         output_dir = kodiutils.addon_profile()
 
         # Make sure our output dir exists
@@ -438,7 +472,7 @@ class IptvSimple:
 
         # Move new file to the right place. os.replace() is atomic: readers
         # never see a missing EPG during a refresh.
-        os.replace(epg_path + '.tmp', epg_path)
+        return cls._replace_if_changed(epg_path)
 
     @classmethod
     def _construct_epg_program_xml(cls, item, channel):

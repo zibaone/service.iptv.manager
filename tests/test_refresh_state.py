@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Refusing to replace good files with a degraded collection"""
 
-# pylint: disable=invalid-name,missing-docstring,no-self-use,protected-access
+# pylint: disable=invalid-name,missing-docstring,no-self-use,protected-access,attribute-defined-outside-init
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
@@ -62,13 +62,17 @@ class RefreshGuardTest(unittest.TestCase):
     def tearDown(self):
         self.tempdir.cleanup()
 
-    def refresh(self, providers):
+    def refresh(self, providers, playlist_changed=True, epg_changed=True, restart_enabled=False):
+        self.write_playlist.return_value = playlist_changed
+        self.write_epg.return_value = epg_changed
+        self.restart = mock.Mock()
         with mock.patch.object(Addon, 'detect_iptv_addons', return_value=providers), \
                 mock.patch.object(IptvSimple, 'write_playlist', self.write_playlist), \
                 mock.patch.object(IptvSimple, 'write_epg', self.write_epg), \
+                mock.patch.object(IptvSimple, 'restart', self.restart), \
                 mock.patch('resources.lib.modules.addon.kodiutils.addon_profile', return_value=PROFILE), \
                 mock.patch('resources.lib.modules.addon.kodiutils.addon_name', return_value='Provider'), \
-                mock.patch('resources.lib.modules.addon.kodiutils.get_setting_bool', return_value=False), \
+                mock.patch('resources.lib.modules.addon.kodiutils.get_setting_bool', return_value=restart_enabled), \
                 mock.patch('resources.lib.modules.addon.kodiutils.set_setting_int', self.set_setting):
             Addon.refresh()
 
@@ -109,17 +113,56 @@ class RefreshGuardTest(unittest.TestCase):
         self.assertEqual(self.write_epg.call_count, 1)
         self.set_setting.assert_called_once()
 
-    def test_partial_first_pass_writes_but_does_not_advance_the_date(self):
-        """One provider answered on a first boot: write, but keep a retry coming."""
+    def test_empty_provider_on_a_first_pass_does_not_block_the_status(self):
+        """A provider installed without credentials returns nothing: not a problem.
+
+        xtream on the Zero 3 answered with no channel and no guide on every
+        pass. Counting it kept every pass partial, retried forever and
+        restarted the PVR for nothing (2026-10-26).
+        """
         providers = [
             FakeProvider('a', [{'name': 'A', 'stream': 'http://a'}], {'a': [{'title': 'T'}]}),
-            FakeProvider('b', [], {}),
+            FakeProvider('xtream', [], {}),
         ]
 
         self.refresh(providers)
 
         self.assertEqual(self.write_playlist.call_count, 1)
-        self.set_setting.assert_not_called()
+        self.set_setting.assert_called_once()
+        self.assertEqual(read_state()['_meta']['retry_after'], 0)
+
+    def test_a_provider_that_never_had_data_stays_neutral(self):
+        """The same empty provider on a later pass still leaves the pass complete."""
+        write_state({
+            'a': {'channels': 1, 'programs': 1, 'failures': 0},
+            'xtream': {'channels': 0, 'programs': 0, 'failures': 0},
+            '_meta': {'last_attempt': 1800000000 - 86400, 'failures': 0, 'retry_after': 0},
+        })
+        providers = [
+            FakeProvider('a', [{'name': 'A', 'stream': 'http://a'}], {'a': [{'title': 'T'}]}),
+            FakeProvider('xtream', [], {}),
+        ]
+
+        self.refresh(providers)
+
+        self.set_setting.assert_called_once()
+        self.assertEqual(read_state()['_meta']['failures'], 0)
+
+    def test_unchanged_files_do_not_restart_iptv_simple(self):
+        """A pass that brings nothing new must not interrupt the PVR."""
+        provider = FakeProvider('a', [{'name': 'A', 'stream': 'http://a'}], {'a': [{'title': 'T'}]})
+
+        self.refresh([provider], playlist_changed=False, epg_changed=False, restart_enabled=True)
+
+        self.restart.assert_not_called()
+
+    def test_a_changed_playlist_restarts_iptv_simple(self):
+        """A real change keeps the automatic restart on the safe path."""
+        provider = FakeProvider('a', [{'name': 'A', 'stream': 'http://a'}], {'a': [{'title': 'T'}]})
+
+        self.refresh([provider], playlist_changed=True, epg_changed=False, restart_enabled=True)
+
+        self.restart.assert_called_once_with(False)
 
     def test_three_consecutive_failures_accept_the_decrease(self):
         """After three passes, a provider that really lost its channels is believed."""

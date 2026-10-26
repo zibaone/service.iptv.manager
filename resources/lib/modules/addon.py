@@ -138,10 +138,15 @@ class Addon:
         if show_progress:
             progress.update(100, kodiutils.localize(30705))
 
-        IptvSimple.write_playlist(channels)
-        IptvSimple.write_epg(epg, channels)
+        playlist_changed = IptvSimple.write_playlist(channels)
+        epg_changed = IptvSimple.write_epg(epg, channels)
 
-        if kodiutils.get_setting_bool('iptv_simple_restart'):
+        if not (playlist_changed or epg_changed):
+            # A pass that brought nothing new must not interrupt the PVR: the
+            # provider payloads are often identical, and the restart used to
+            # cost a PVR stop/start on every pass (Zero 3, 2026-10-26).
+            _LOGGER.info('Playlist and guide unchanged; IPTV Simple is left running')
+        elif kodiutils.get_setting_bool('iptv_simple_restart'):
             if show_progress:
                 # Restart now.
                 IptvSimple.restart(True)
