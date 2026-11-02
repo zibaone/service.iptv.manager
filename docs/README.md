@@ -46,7 +46,7 @@ Il ne documente pas l'amont : pour le fonctionnement général de l'addon, voir 
 | [`01-charte.md`](01-charte.md) | Périmètre, règles de maintenance, contrat d'interopérabilité, distribution, GPL, décisions déjà prises. |
 | [`02-correctifs.md`](02-correctifs.md) | Backlog technique : une fiche par correctif (symptôme, cause, code, test, critère d'acceptation, statut). |
 | [`03-triage-amont.md`](03-triage-amont.md) | Les 31 issues ouvertes et les 4 PR non mergées de l'amont, avec le verdict retenu pour chacune. |
-| [`04-roadmap.md`](04-roadmap.md) | Lots de travail, versions, critères de sortie, publication, mise à jour du pin HavenOS, déploiement sur les boxes. |
+| [`04-roadmap.md`](04-roadmap.md) | Lots de travail, versions, critères de sortie, publication, mise à jour du pin de l'image, déploiement sur les boxes. |
 | [`05-tests-et-verification.md`](05-tests-et-verification.md) | Comment lancer les tests, ce qui existe, les régressions à écrire, le protocole de vérification sur box. |
 | [`06-tv-common.md`](06-tv-common.md) | Faut-il dépendre de `script.module.tv_common` ? Recouvrement mesuré, avantages, inconvénients, décision. |
 | [`07-incident-kodi22-service.md`](07-incident-kodi22-service.md) | Le service s'arrête sur Kodi 22 (`Invalid setting type`) : preuve, mécanisme, correctif `F-11`, vérification sur box. |

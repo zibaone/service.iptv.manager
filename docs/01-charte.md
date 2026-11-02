@@ -26,7 +26,7 @@ Ce n'est pas un fork de fonctionnalités.
 - Kodi **21 et 22** (les deux boxes de l'appliance tournent sur Kodi 22).
 - Python 3 uniquement. Le code Python 2 de l'amont n'est pas maintenu.
 - `addon.xml` déclare `<import addon="xbmc.python" version="3.0.0"/>` depuis
-  `b13b47d`. Le `postPatch` du paquet HavenOS, qui réécrivait `2.26.0`, devient
+  `b13b47d`. Le `postPatch` du paquet de l'image, qui réécrivait `2.26.0`, devient
   inutile et doit être retiré à la prochaine mise à jour du pin.
 - Dépendances conservées : `script.module.dateutil`, `pvr.iptvsimple`.
   Aucune dépendance nouvelle sans décision écrite ici ; la question de
@@ -80,7 +80,7 @@ Toute évolution doit les préserver, et un test doit le vérifier.
   le workflow hérité de l'amont tente de publier dans `xbmc/repo-scripts`, ce
   qui n'a pas de sens pour un fork (voir `F-09`).
 - Pour l'appliance, deux canaux de distribution coexistent :
-  1. **HavenOS** : `pkgs/iptv-manager/default.nix` épingle un `rev` et un
+  1. **Paquet de l'image** : `pkgs/iptv-manager/default.nix` épingle un `rev` et un
      `hash` (`fetchFromGitHub`). Toute nouvelle version exige la mise à jour de
      ces deux valeurs (procédure en `04-roadmap.md`).
   2. **Dépôt d'artefacts Kodi** : si les boxes doivent se mettre à jour sans
@@ -121,6 +121,6 @@ par des tests. D5 reste provisoire jusqu'à `F-04`.
 | Q1 | Attente fixe de 8 s ou attente vérifiée de l'arrêt du PVR ? | **Tranchée** : attente vérifiée, livrée en `e45e2d7`. |
 | Q2 | En cas de passe dégradée (un fournisseur manquant) : conserver l'ancienne playlist ou écrire la nouvelle partielle ? | **Tranchée** : conserver l'ancienne et réessayer (F-02). |
 | Q3 | Réactiver `iptv_simple_restart=true` sur les boxes après F-01 ? | Oui, mais seulement après vérification sur une box, lecteur actif puis inactif. |
-| Q4 | Publier le zip dans le dépôt d'artefacts des boxes, ou rester sur le pin HavenOS ? | Les deux : le pin pour l'image, le dépôt pour la mise à jour sans réinstallation. |
-| Q5 | Garder le `postPatch` HavenOS qui réécrit `xbmc.python` ? | Non : `F-09` est livré (`b13b47d`), le retirer à la prochaine mise à jour du pin. |
+| Q4 | Publier le zip dans le dépôt d'artefacts des boxes, ou rester sur le pin de l'image ? | Les deux : le pin pour l'image, le dépôt pour la mise à jour sans réinstallation. |
+| Q5 | Garder le `postPatch` de l'image qui réécrit `xbmc.python` ? | Non : `F-09` est livré (`b13b47d`), le retirer à la prochaine mise à jour du pin. |
 | Q6 | Faire dépendre le service de `script.module.tv_common` ? | **Tranchée** : non pour le runtime, deux emprunts ciblés (`06-tv-common.md`). |

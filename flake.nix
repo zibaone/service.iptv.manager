@@ -1,5 +1,5 @@
 {
-  description = "IPTV Manager — HavenOS fork (test environment)";
+  description = "IPTV Manager — downstream fork (test environment)";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 

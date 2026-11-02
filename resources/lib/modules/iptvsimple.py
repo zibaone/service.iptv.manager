@@ -31,6 +31,14 @@ PVR_STOP_TIMEOUT = 60
 PVR_STOP_MARGIN = 2
 PVR_START_GRACE = 30
 
+# A restart that does not take must not turn into a churn: on the Magicsee N5
+# the PVR manager needed up to 90 s to come back, and the old "one check at
+# +30 s, then restart again" loop ran 314 disable/enable cycles in three hours
+# (measured 2026-11-02). Wait a few checks, then back off, then stop.
+PVR_START_CHECKS = 3
+RESTART_BACKOFF = (15 * 60, 60 * 60)
+RESTART_MAX_FAILURES = 3
+
 PLAYING_CONDITIONS = (
     'Pvr.IsPlayingTv',
     'Pvr.IsPlayingRadio',
@@ -44,6 +52,12 @@ class IptvSimple:
 
     restart_required = False
     verify_at = None
+
+    # Restart bookkeeping: checks already spent on the current start, failed
+    # restart cycles, and the earliest time of the next attempt (0 = now).
+    _start_checks = 0
+    _failures = 0
+    _retry_after = 0.0
 
     def __init__(self):
         """Init"""
@@ -129,10 +143,83 @@ class IptvSimple:
                         return False
                 elif not cls._same_path(kept, value):
                     return False
-            return True
+
+            # Kodi 20+ runs IPTV Simple through a PVR *instance*: the add-on's
+            # own settings.xml is not what the client reads. A box whose
+            # instance points nowhere is not configured, even when the legacy
+            # values are right — otherwise setup() never runs on it (F-04,
+            # measured on the Magicsee N5: legacy paths good, instance empty,
+            # client stuck in CONNECTING and no channels).
+            return cls._instances_configured(addon, output_dir)
         except Exception:  # pylint: disable=broad-except
             _LOGGER.debug('Could not read IPTV Simple settings', exc_info=True)
             return False
+
+    @staticmethod
+    def _instance_files(addon):
+        """Return the PVR instance settings files, sorted by instance id."""
+        try:
+            profile_dir = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
+            return sorted(glob.glob(os.path.join(profile_dir, 'instance-settings*.xml')))
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.debug('Could not read the IPTV Simple profile', exc_info=True)
+            return []
+
+    @staticmethod
+    def _read_instance(path):
+        """Return the text of one instance settings file, or None on error."""
+        try:
+            with open(path, 'r', encoding='utf-8') as fdesc:
+                return fdesc.read()
+        except OSError:
+            _LOGGER.warning('Could not read IPTV Simple instance %s', os.path.basename(path), exc_info=True)
+            return None
+
+    @staticmethod
+    def _instance_values(content):
+        """Return the ``id -> text`` settings of one instance file."""
+        try:
+            root = ElementTree.fromstring(content)
+        except ElementTree.ParseError:
+            return None
+        return dict((element.get('id'), element.text or '') for element in root.findall('setting'))
+
+    @classmethod
+    def _instance_has_source(cls, content):
+        """Return True when the instance points somewhere, ours or not.
+
+        A setting Kodi created with ``default="true"`` has no text: the client
+        falls back to its own default (M3U path type 1, remote URL). An empty
+        remote URL is therefore no source at all, which is exactly the state
+        that leaves IPTV Simple stuck in CONNECTING.
+        """
+        values = cls._instance_values(content)
+        if values is None:
+            return True  # Unreadable: leave the file alone
+        if values.get('m3uPathType', '1') == '0':
+            return bool((values.get('m3uPath') or '').strip())
+        return bool((values.get('m3uUrl') or '').strip())
+
+    @classmethod
+    def _instances_configured(cls, addon, output_dir):
+        """Return True when the PVR instances can load, or already use us."""
+        instances = cls._instance_files(addon)
+        if not instances:
+            # No instance yet: the legacy settings are all there is to judge.
+            return True
+
+        playlist = os.path.join(output_dir, IPTV_SIMPLE_PLAYLIST)
+        for path in instances:
+            content = cls._read_instance(path)
+            if content is None:
+                continue
+            if playlist in content:
+                return True
+            # An instance the user pointed at another source is a working
+            # install: do not fight it on every start (F-04).
+            if cls._instance_has_source(content):
+                return True
+        return False
 
     @staticmethod
     def _get_addon():
@@ -188,29 +275,52 @@ class IptvSimple:
 
     @classmethod
     def _configure_instances(cls, addon, output_dir):
-        """Update the instances that already point at our playlist.
+        """Update the instance IPTV Simple actually reads.
 
-        Kodi 20+ keeps one settings file per PVR instance. Only a file that
-        already references our playlist is touched, and only for the paths we
-        own: an instance the user configured keeps its own choices
+        Kodi 20+ keeps one settings file per PVR instance. Only the four paths
+        are written: an instance the user configured keeps its own choices
         (docs/02, F-04).
-        """
-        try:
-            profile_dir = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
-        except Exception:  # pylint: disable=broad-except
-            _LOGGER.debug('Could not read the IPTV Simple profile', exc_info=True)
-            return
 
-        instances = sorted(glob.glob(os.path.join(profile_dir, 'instance-settings*.xml')))
+        Which instance:
+        - the ones that already reference our playlist;
+        - when none does, the default instance (``instance-settings-1.xml``) if
+          it has no source at all. A migrated profile can leave it on "remote
+          URL" with an empty URL: the client then stays in CONNECTING, the PVR
+          manager never starts and no channel appears. The blanket copy of
+          ``settings.xml`` is still not the answer: an instance pointed at a
+          user's own source is left untouched.
+        """
+        instances = cls._instance_files(addon)
         _LOGGER.info('IPTV Simple instance settings found: %s',
                      ', '.join(os.path.basename(path) for path in instances) or 'none')
+        if not instances:
+            # Activation creates the instance file; nothing to patch this pass.
+            _LOGGER.warning('No IPTV Simple instance settings yet; the paths will be applied on the next start')
+            return
 
         playlist = os.path.join(output_dir, IPTV_SIMPLE_PLAYLIST)
+        ours = []
+        empty = []
         for path in instances:
+            content = cls._read_instance(path)
+            if content is None:
+                continue
+            if playlist in content:
+                ours.append(path)
+            elif not cls._instance_has_source(content):
+                empty.append(path)
+
+        targets = ours
+        if not targets:
+            default = [path for path in empty if os.path.basename(path) == 'instance-settings-1.xml']
+            if default:
+                targets = default
+            else:
+                _LOGGER.warning('IPTV Simple has no instance on our playlist and its default instance '
+                                'is configured elsewhere; leaving it alone')
+
+        for path in targets:
             try:
-                with open(path, 'r', encoding='utf-8') as fdesc:
-                    if playlist not in fdesc.read():
-                        continue
                 if cls._apply_instance_paths(path, output_dir):
                     _LOGGER.info('Updated IPTV Simple instance %s', os.path.basename(path))
             except Exception:  # pylint: disable=broad-except
@@ -233,6 +343,10 @@ class IptvSimple:
                 changed = True
             if (element.text or '') != value:
                 element.text = value
+                # A value written by Kodi carries no `default` attribute; keep
+                # the file consistent so a settings migration cannot read our
+                # path as "still the default".
+                element.attrib.pop('default', None)
                 changed = True
 
         if not changed:
@@ -253,6 +367,12 @@ class IptvSimple:
         """
         _LOGGER.debug('Restart of IPTV Simple requested (force=%s)', force)
 
+        # A failed cycle schedules the next attempt; the service loop calls us
+        # every 30 s, so honour the deadline instead of restarting again.
+        if not force and time.time() < cls._retry_after:
+            cls.restart_required = True
+            return False
+
         if cls._is_playing():
             cls.restart_required = True
             _LOGGER.info('Postponing restart of Simple IPTV since it is currently in use')
@@ -260,6 +380,7 @@ class IptvSimple:
 
         cls.restart_required = False
         cls.verify_at = None
+        cls._start_checks = 0
 
         cls._deactivate()
 
@@ -279,17 +400,55 @@ class IptvSimple:
 
     @classmethod
     def check_started(cls):
-        """Check that IPTV Simple came back after a restart, and retry if not."""
+        """Check that IPTV Simple came back after a restart, and retry if not.
+
+        One unavailable reading is not a failure: the PVR manager legitimately
+        reports `available: false` while it loads the playlist (measured: up to
+        90 s on the N5 with 570 channels). Several checks are allowed before the
+        restart is declared failed, and a failed restart backs off before the
+        next cycle (and gives up after RESTART_MAX_FAILURES).
+        """
         if cls.verify_at is None or time.time() < cls.verify_at:
             return
 
-        cls.verify_at = None
         if cls._pvr_available() is True:
+            cls.verify_at = None
+            cls._start_checks = 0
+            cls._failures = 0
+            cls._retry_after = 0.0
             _LOGGER.debug('IPTV Simple is running again')
             return
 
-        _LOGGER.warning('IPTV Simple did not start after a restart; scheduling another attempt')
+        cls._start_checks += 1
+        if cls._start_checks < PVR_START_CHECKS:
+            cls.verify_at = time.time() + PVR_START_GRACE
+            _LOGGER.info('IPTV Simple is not up yet (check %d/%d); waiting %d s more',
+                         cls._start_checks, PVR_START_CHECKS, PVR_START_GRACE)
+            return
+
+        cls.verify_at = None
+        cls._failed_restart()
+
+    @classmethod
+    def _failed_restart(cls):
+        """Record a failed restart: back off, then give up after a few cycles."""
+        cls._start_checks = 0
+        cls._failures += 1
+
+        if cls._failures >= RESTART_MAX_FAILURES:
+            # Leave the add-on enabled and stop poking the PVR manager: a
+            # disable/enable loop cannot fix a client that refuses to start, and
+            # it destroys the channel list every 30 s while it tries.
+            _LOGGER.error('IPTV Simple did not start after %d restarts; leaving it enabled. '
+                          'A Kodi restart is required to recover the PVR client', cls._failures)
+            cls.restart_required = False
+            cls._retry_after = 0.0
+            return
+
+        delay = RESTART_BACKOFF[min(cls._failures - 1, len(RESTART_BACKOFF) - 1)]
+        cls._retry_after = time.time() + delay
         cls.restart_required = True
+        _LOGGER.warning('IPTV Simple did not start after a restart; next attempt in %d s', delay)
 
     @staticmethod
     def _is_playing():

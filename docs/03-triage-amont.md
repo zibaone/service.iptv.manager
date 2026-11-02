@@ -19,7 +19,7 @@ fiches de `02-correctifs.md`.
 | #116 | Autoconfiguration creates m3u file successfully, but don't set it automatically | **À corriger** : relire `m3uPath`/`epgPath` après écriture ; c'est exactement le défaut de `setup()`. | F-04 |
 | #106 | IPTV Simple multiple instances? | **À traiter a minima** : ne pas écraser une autre instance ; documenter le comportement si plusieurs instances existent. | F-04 |
 | #102 | IPTV manager install without any PVR or backend crashes Kodi | **À traiter** : aucun crash si `pvr.iptvsimple` est absent. | F-04 |
-| #117 | Unable to install on COREELEC — dependency on xbmc.python 2.26.0 | **À corriger** : déclarer `xbmc.python 3.0.0` dans le dépôt, pas seulement via le `postPatch` HavenOS. | F-09 |
+| #117 | Unable to install on COREELEC — dependency on xbmc.python 2.26.0 | **À corriger** : déclarer `xbmc.python 3.0.0` dans le dépôt, pas seulement via le `postPatch` de l'image. | F-09 |
 | #90 | Channels order not kept | **À ne pas casser** : notre numérotation dépend de l'ordre d'insertion des fournisseurs. Aucun tri ne doit être introduit. | — |
 | #95 | Add params for refresh | **Retenu comme fonctionnalité** : refresh d'un seul fournisseur, base d'un refresh rapide et sûr. | Lot 3 |
 | #92 (PR) | Improvements — « passive refresh switch » + `last_refreshed` en propriété de fenêtre | **Idée reprise, implémentation non** : un état persisté sur disque, pas une propriété de fenêtre qui disparaît au redémarrage. | F-03 |

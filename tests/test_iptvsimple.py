@@ -11,7 +11,14 @@ import unittest
 from unittest import mock
 
 from resources.lib import kodiutils
-from resources.lib.modules.iptvsimple import IPTV_SIMPLE_EPG, IPTV_SIMPLE_PLAYLIST, IptvSimple
+from resources.lib.modules.iptvsimple import (
+    IPTV_SIMPLE_EPG,
+    IPTV_SIMPLE_PLAYLIST,
+    PVR_START_CHECKS,
+    RESTART_BACKOFF,
+    RESTART_MAX_FAILURES,
+    IptvSimple,
+)
 
 SLEEP = 'resources.lib.modules.iptvsimple.time.sleep'
 
@@ -59,6 +66,9 @@ class IptvSimpleTest(unittest.TestCase):
     def setUp(self):
         IptvSimple.restart_required = False
         IptvSimple.verify_at = None
+        IptvSimple._start_checks = 0
+        IptvSimple._failures = 0
+        IptvSimple._retry_after = 0.0
 
     def test_restart_postponed_while_playing(self):
         """A forced restart must not stop a playback in progress."""
@@ -126,16 +136,52 @@ class IptvSimpleTest(unittest.TestCase):
 
         self.assertEqual(flags(calls, 'Addons.SetAddonEnabled'), [False, True])
 
-    def test_check_started_retries_when_pvr_is_down(self):
-        """After the grace delay, an unavailable PVR schedules another restart."""
+    def test_check_started_waits_before_failing(self):
+        """One unavailable reading keeps waiting: the PVR may still be loading."""
         IptvSimple.verify_at = 0
         _, fake_rpc = rpc_recorder([False])
         with mock.patch.object(kodiutils, 'jsonrpc', side_effect=fake_rpc), \
                 mock.patch(SLEEP):
             IptvSimple.check_started()
 
+        self.assertFalse(IptvSimple.restart_required)
+        self.assertIsNotNone(IptvSimple.verify_at)
+        self.assertEqual(IptvSimple._start_checks, 1)
+
+    def test_check_started_fails_after_the_checks_then_backs_off(self):
+        """After PVR_START_CHECKS unavailable readings, a restart is scheduled later."""
+        IptvSimple.verify_at = 0
+        _, fake_rpc = rpc_recorder([False] * PVR_START_CHECKS)
+        with mock.patch.object(kodiutils, 'jsonrpc', side_effect=fake_rpc), \
+                mock.patch(SLEEP), mock.patch('time.time', return_value=1000):
+            for _ in range(PVR_START_CHECKS):
+                IptvSimple.verify_at = 0
+                IptvSimple.check_started()
+
         self.assertTrue(IptvSimple.restart_required)
-        self.assertIsNone(IptvSimple.verify_at)
+        self.assertEqual(IptvSimple._failures, 1)
+        self.assertEqual(IptvSimple._retry_after, 1000 + RESTART_BACKOFF[0])
+
+    def test_restart_honours_the_backoff(self):
+        """While the backoff runs, restart() must not touch the PVR client."""
+        calls, fake_rpc = rpc_recorder([])
+        IptvSimple.restart_required = True
+        IptvSimple._retry_after = 10 ** 12
+        with mock.patch.object(kodiutils, 'jsonrpc', side_effect=fake_rpc), \
+                mock.patch(SLEEP):
+            self.assertFalse(IptvSimple.restart())
+
+        self.assertTrue(IptvSimple.restart_required)
+        self.assertEqual(calls, [])
+
+    def test_restart_gives_up_after_the_maximum(self):
+        """The service stops churning once the PVR client refuses to come back."""
+        IptvSimple._failures = RESTART_MAX_FAILURES - 1
+        with mock.patch(SLEEP), self.assertLogs('resources.lib.modules.iptvsimple', level='ERROR'):
+            IptvSimple._failed_restart()
+
+        self.assertFalse(IptvSimple.restart_required)
+        self.assertEqual(IptvSimple._retry_after, 0.0)
 
     def test_check_started_keeps_restart_when_pvr_is_up(self):
         """A running PVR clears the verification without scheduling anything."""
@@ -298,6 +344,62 @@ class SetupTest(unittest.TestCase):
         self.assertIn('<setting id="catchupEnabled">false</setting>', updated)
         self.assertEqual(untouched, other)
 
+    def test_setup_configures_an_empty_default_instance(self):
+        """A migrated instance with no source at all is filled with our paths."""
+        with tempfile.TemporaryDirectory() as profile:
+            playlist = os.path.join(profile, 'playlist.m3u8')
+            touch(playlist)
+            empty = (
+                '<settings version="2">\n'
+                '    <setting id="kodi_addon_instance_name">Migrated Add-on Config</setting>\n'
+                '    <setting id="m3uPathType" default="true">1</setting>\n'
+                '    <setting id="m3uPath" default="true" />\n'
+                '    <setting id="m3uUrl" default="true" />\n'
+                '    <setting id="epgPathType" default="true">1</setting>\n'
+                '    <setting id="epgPath" default="true" />\n'
+                '    <setting id="catchupEnabled">false</setting>\n'
+                '</settings>\n'
+            )
+            with open(os.path.join(profile, 'instance-settings-1.xml'), 'w', encoding='utf-8') as handle:
+                handle.write(empty)
+
+            addon = FakeAddon(profile)
+            self.assertTrue(self.run_setup(addon, profile))
+
+            with open(os.path.join(profile, 'instance-settings-1.xml'), encoding='utf-8') as handle:
+                updated = handle.read()
+
+        self.assertIn('<setting id="m3uPathType">0</setting>', updated)
+        self.assertIn('<setting id="m3uPath">%s</setting>' % playlist, updated)
+        self.assertIn('<setting id="epgPathType">0</setting>', updated)
+        self.assertIn('<setting id="epgPath">%s</setting>' % os.path.join(profile, 'epg.xml'), updated)
+        self.assertIn('<setting id="catchupEnabled">false</setting>', updated)
+
+    def test_setup_leaves_a_foreign_instance_alone(self):
+        """An instance the user pointed at another source is not rewritten."""
+        with tempfile.TemporaryDirectory() as profile:
+            playlist = os.path.join(profile, 'playlist.m3u8')
+            touch(playlist)
+            foreign = (
+                '<settings version="2">\n'
+                '    <setting id="m3uPathType">1</setting>\n'
+                '    <setting id="m3uUrl">https://example.invalid/list.m3u</setting>\n'
+                '</settings>\n'
+            )
+            path = os.path.join(profile, 'instance-settings-1.xml')
+            with open(path, 'w', encoding='utf-8') as handle:
+                handle.write(foreign)
+
+            addon = FakeAddon(profile)
+            with self.assertLogs('resources.lib.modules.iptvsimple', level='WARNING') as logs:
+                self.assertTrue(self.run_setup(addon, profile))
+
+            with open(path, encoding='utf-8') as handle:
+                unchanged = handle.read()
+
+        self.assertEqual(unchanged, foreign)
+        self.assertIn('configured elsewhere', '\n'.join(logs.output))
+
     def test_setup_uses_the_safe_restart_path(self):
         """setup() never re-enables IPTV Simple without waiting for the PVR."""
         calls, fake_rpc = rpc_recorder([True, False])
@@ -362,6 +464,45 @@ class SetupTest(unittest.TestCase):
                 mock.patch.object(kodiutils, 'addon_profile', return_value='/profile/'), \
                 mock.patch('resources.lib.modules.iptvsimple.xbmcvfs.translatePath', side_effect=lambda path: path):
             self.assertFalse(IptvSimple.is_configured())
+
+    def test_is_configured_rejects_an_empty_instance(self):
+        """Good legacy paths are not enough: the instance the PVR reads is empty."""
+        with tempfile.TemporaryDirectory() as profile:
+            addon = FakeAddon(profile)
+            for key, value in IptvSimple._paths(profile + os.sep).items():
+                addon.setSetting(key, value)
+            with open(os.path.join(profile, 'instance-settings-1.xml'), 'w', encoding='utf-8') as handle:
+                handle.write(
+                    '<settings version="2">\n'
+                    '    <setting id="m3uPathType" default="true">1</setting>\n'
+                    '    <setting id="m3uPath" default="true" />\n'
+                    '    <setting id="m3uUrl" default="true" />\n'
+                    '</settings>\n'
+                )
+
+            with mock.patch.object(kodiutils, 'get_addon', return_value=addon), \
+                    mock.patch.object(kodiutils, 'addon_profile', return_value=profile + os.sep), \
+                    mock.patch('resources.lib.modules.iptvsimple.xbmcvfs.translatePath', side_effect=lambda path: path):
+                self.assertFalse(IptvSimple.is_configured())
+
+    def test_is_configured_accepts_an_instance_on_our_playlist(self):
+        """The instance that references our playlist makes the install configured."""
+        with tempfile.TemporaryDirectory() as profile:
+            addon = FakeAddon(profile)
+            for key, value in IptvSimple._paths(profile + os.sep).items():
+                addon.setSetting(key, value)
+            with open(os.path.join(profile, 'instance-settings-1.xml'), 'w', encoding='utf-8') as handle:
+                handle.write(
+                    '<settings version="2">\n'
+                    '    <setting id="m3uPathType">0</setting>\n'
+                    '    <setting id="m3uPath">%s</setting>\n'
+                    '</settings>\n' % os.path.join(profile, 'playlist.m3u8')
+                )
+
+            with mock.patch.object(kodiutils, 'get_addon', return_value=addon), \
+                    mock.patch.object(kodiutils, 'addon_profile', return_value=profile + os.sep), \
+                    mock.patch('resources.lib.modules.iptvsimple.xbmcvfs.translatePath', side_effect=lambda path: path):
+                self.assertTrue(IptvSimple.is_configured())
 
 
 class ProgramXmlTest(unittest.TestCase):

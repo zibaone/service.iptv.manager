@@ -141,9 +141,9 @@ tag. **Vérifier l'asset après publication** : `unzip -p <zip> addon.xml | grep
 version` doit afficher la bonne version, et le zip ne doit contenir ni `tests/`,
 ni `flake.nix`, ni `.github/`.
 
-## 4. Mise à jour du pin HavenOS
+## 4. Mise à jour du pin de l'image
 
-Le paquet vit dans `pkgs/iptv-manager/default.nix` du dépôt HavenOS. Il épingle
+Le paquet vit dans `pkgs/iptv-manager/default.nix` du dépôt de l'image. Il épingle
 aujourd'hui :
 
 ```nix

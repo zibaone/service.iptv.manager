@@ -4,7 +4,7 @@
 # IPTV Manager
 This Service Add-on allows supported IPTV Add-ons to integrates their Live TV and Radio Channels in the Kodi TV integration.
 
-> **HavenOS fork.** Upstream was archived in December 2023. This fork only
+> **Downstream fork.** Upstream was archived in December 2023. This fork only
 > carries appliance fixes: automatic IPTV Simple setup on first run, a safe
 > IPTV Simple restart on Kodi 22, one retry when a provider misses the socket
 > timeout, and atomic playlist/EPG replacement. No feature work is planned

@@ -1,8 +1,30 @@
 # Changelog
 
+## v0.2.12 (2026-11-02)
+
+Downstream fork, IPTV Simple instance fix (measured on the Magicsee N5, Kodi 21.3):
+
+- Configure the PVR instance that IPTV Simple actually reads. Kodi 20+ keeps
+  the client settings in `instance-settings-N.xml`, not in the add-on's
+  `settings.xml`; a profile migrated with `m3uPathType=1` and an empty URL left
+  the client stuck in `CONNECTING`, so the PVR manager never started and the TV
+  menu stayed empty. `is_configured()` now fails when no instance has a source,
+  and `setup()` fills the default instance when nothing points at our playlist.
+  An instance the user configured with another source is still left untouched.
+- Do not keep `default="true"` on a value we change, so a later settings
+  migration cannot read our path as "still the default".
+- Stop the restart churn when IPTV Simple does not come back. One unavailable
+  `PVR.GetProperties` reading at +30 s used to schedule another restart
+  immediately: measured on the N5, 314 disable/enable cycles in three hours,
+  each one destroying the channel list while it tried. A restart is now
+  declared failed after three checks, retried after 15 min then 1 h, and
+  abandoned (add-on left enabled) after three failed cycles — a PVR client that
+  refuses to start needs a Kodi restart, not another poke.
+- 85 unit tests, `pylint` 10.00/10.
+
 ## v0.2.11 (2026-10-26)
 
-HavenOS fork, field pass on the Zero 3 (Kodi 21.3):
+Downstream fork, field pass on the Zero 3 (Kodi 21.3):
 
 - A provider that never published anything (xtream, installed without
   credentials) no longer blocks the status. It answered with no channel and no
@@ -24,7 +46,7 @@ HavenOS fork, field pass on the Zero 3 (Kodi 21.3):
 
 ## v0.2.10 (2026-10-26)
 
-HavenOS fork, setup pass:
+Downstream fork, setup pass:
 
 - Verify that `pvr.iptvsimple` exists before configuring it; a missing PVR
   client returns `False` with a warning instead of raising. The automatic
@@ -47,7 +69,7 @@ HavenOS fork, setup pass:
 
 ## v0.2.9 (2026-10-26)
 
-HavenOS fork, data-integrity pass:
+Downstream fork, data-integrity pass:
 
 - Record per-provider channel and program counts in `providers_state.json`,
   written atomically; a missing or corrupt file means first boot.
@@ -63,7 +85,7 @@ HavenOS fork, data-integrity pass:
 
 ## v0.2.8 (2026-10-26)
 
-HavenOS fork, reliability pass:
+Downstream fork, reliability pass:
 
 - Wait for the PVR manager to report the client stopped before re-enabling IPTV
   Simple; postpone the restart while TV, radio, video or a recording is in
@@ -89,7 +111,7 @@ HavenOS fork, reliability pass:
 
 ## v0.2.6 (2026-10-25)
 
-HavenOS fork, minimal scope:
+Downstream fork, minimal scope:
 
 - Wait 8 seconds before re-enabling PVR IPTV Simple (Kodi 22 needs more than 1 s).
 - Retry a provider once when it misses the initial 30-second socket timeout.

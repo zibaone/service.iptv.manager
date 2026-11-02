@@ -275,6 +275,25 @@ sans exception. `is_configured()` tolère `special://` et ne regarde plus
 **Risque.** La détection d'instance dépend du format de fichier de Kodi 20+ ;
 tester sur les deux boxes avant de considérer le correctif livré.
 
+**Régression mesurée le 2026-11-02 (Magicsee N5, 0.2.11).** Le profil migré
+portait `instance-settings-1.xml` en « remote URL » avec `m3uUrl` vide, et
+`settings.xml` (hérité) avec nos chemins. `is_configured()` ne lisait que
+`settings.xml` : il répondait vrai, donc `setup()` ne tournait jamais et aucune
+instance ne recevait la playlist. Le client restait en `CONNECTING`
+(`connection state change (0 -> 7)`), le gestionnaire PVR ne démarrait pas
+(`PVR.GetProperties` → `-32100`), `check_started()` relançait IPTV Simple toutes
+les 30 s (306 tentatives) et l'interface n'avait aucune chaîne. Correctif
+0.2.12 : `is_configured()` consulte les fichiers d'instance et échoue si aucun
+n'a de source ; `setup()` remplit l'instance par défaut
+(`instance-settings-1.xml`) quand aucune ne référence notre playlist, sans
+toucher à une instance pointée ailleurs ; un `default="true"` est retiré des
+valeurs réécrites. Tests : `test_setup_configures_an_empty_default_instance`,
+`test_setup_leaves_a_foreign_instance_alone`,
+`test_is_configured_rejects_an_empty_instance`,
+`test_is_configured_accepts_an_instance_on_our_playlist`. Validation sur la N5
+après correction manuelle de l'instance : `LoadPlayList - Loaded 570 channels`,
+`PVR Manager: Started`, `available: true`, 44 groupes.
+
 ---
 
 ## F-05 — Socket robuste (P1)
@@ -364,7 +383,7 @@ Résumé d'une ligne dans le journal.
 **Constat.**
 
 - `addon.xml:4` déclare encore `xbmc.python 2.26.0` ; c'est le `postPatch` du
-  paquet HavenOS qui le réécrit en `3.0.0`. Le zip du dépôt n'est donc pas
+  paquet de l'image qui le réécrit en `3.0.0`. Le zip du dépôt n'est donc pas
   installable tel quel sur Kodi 21/22.
 - `Makefile` : `KODI_PYTHON_ABIS := 3.0.0 2.26.0` et
   `kodi-addon-checker --branch=leia`.
