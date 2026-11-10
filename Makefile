@@ -3,6 +3,9 @@ export KODI_INTERACTIVE := 0
 PYTHON := python
 KODI_PYTHON_ABIS := 3.0.0
 
+# Kodi branch used by kodi-addon-checker: omega is Kodi 21, piers is Kodi 22.
+KODI_BRANCH ?= omega
+
 # Collect information to build as sensible package name
 name = $(shell xmllint --xpath 'string(/addon/@id)' addon.xml)
 version = $(shell xmllint --xpath 'string(/addon/@version)' addon.xml)
@@ -42,7 +45,7 @@ check-addon: clean build
 	@printf ">>> Running addon checks\n"
 	$(eval TMPDIR := $(shell mktemp -d))
 	@unzip ../${zip_name} -d ${TMPDIR}
-	cd ${TMPDIR} && kodi-addon-checker --branch=omega
+	cd ${TMPDIR} && kodi-addon-checker --branch=$(KODI_BRANCH)
 	@rm -rf ${TMPDIR}
 
 codefix:

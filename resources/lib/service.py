@@ -15,6 +15,22 @@ from resources.lib.modules.iptvsimple import IptvSimple
 
 _LOGGER = logging.getLogger(__name__)
 
+# Kodi keeps loading the PVR and the providers for a while after a cold boot:
+# a refresh started too early sees half a channel list (upstream issue #88).
+# Give it time to settle before the first pass.
+FIRST_REFRESH_DELAY = 20
+
+# A playback in progress must not be cut by a refresh (upstream issue #89).
+# The pass is postponed and retried on this interval.
+REFRESH_RETRY_DELAY = 60
+
+PLAYING_CONDITIONS = (
+    'Player.HasVideo',
+    'Pvr.IsPlayingTv',
+    'Pvr.IsPlayingRadio',
+    'Pvr.IsPlayingRecording',
+)
+
 
 class BackgroundService(Monitor):
     """Background service code"""
@@ -22,6 +38,11 @@ class BackgroundService(Monitor):
     def __init__(self):
         Monitor.__init__(self)
         self._restart_required = False
+        self._started_at = time.time()
+        # Set when a refresh is due but Kodi is playing something; the pass runs
+        # once the playback stops, at most one attempt per REFRESH_RETRY_DELAY.
+        self.refresh_pending = False
+        self._refresh_retry_at = 0.0
 
     def run(self):
         """Background loop for maintenance tasks"""
@@ -39,8 +60,7 @@ class BackgroundService(Monitor):
         while not self.abortRequested():
             try:
                 # Check if we need to do an update
-                if self._is_refresh_required():
-                    Addon.refresh()
+                self._refresh_pass()
 
                 # Check if IPTV Simple needs to be restarted
                 if IptvSimple.verify_at is not None:
@@ -58,6 +78,47 @@ class BackgroundService(Monitor):
                 break
 
         _LOGGER.debug('Service stopped')
+
+    def _refresh_pass(self):
+        """Run one refresh pass, unless Kodi is busy or the next retry is not due.
+
+        Returns True when a refresh was attempted. The first pass waits for
+        Kodi to settle, and a pass never starts while a playback is running:
+        IPTV Simple would be restarted under the player (F-01, F-07).
+        """
+        now = time.time()
+
+        if now < self._started_at + FIRST_REFRESH_DELAY:
+            _LOGGER.debug('Kodi is still settling; the first refresh waits %d seconds', FIRST_REFRESH_DELAY)
+            return False
+
+        if self.refresh_pending and now < self._refresh_retry_at:
+            _LOGGER.debug('Refresh still pending; next attempt in %d seconds',
+                          int(self._refresh_retry_at - now))
+            return False
+
+        if not self._is_refresh_required(now):
+            return False
+
+        if self._is_playing():
+            self.refresh_pending = True
+            self._refresh_retry_at = now + REFRESH_RETRY_DELAY
+            _LOGGER.info('Refresh postponed since Kodi is playing; retrying in %d seconds',
+                         REFRESH_RETRY_DELAY)
+            return False
+
+        Addon.refresh()
+        self.refresh_pending = False
+        self._refresh_retry_at = 0.0
+        return True
+
+    @staticmethod
+    def _is_playing():
+        """Return True when Kodi is playing TV, radio, a recording or a video."""
+        for condition in PLAYING_CONDITIONS:
+            if kodiutils.get_cond_visibility(condition):
+                return True
+        return False
 
     @staticmethod
     def _is_refresh_required(now=None):

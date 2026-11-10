@@ -46,6 +46,15 @@ PLAYING_CONDITIONS = (
     'PVR.IsRecording',
 )
 
+# Catchup added to the generated playlist (docs/02, F-10):
+# - all: every channel gets `catchup="vod"`, the historical behaviour;
+# - declared: only a channel whose provider announced a catchup-source;
+# - none: never.
+CATCHUP_ALL = 'all'
+CATCHUP_DECLARED = 'declared'
+CATCHUP_NONE = 'none'
+CATCHUP_MODES = (CATCHUP_ALL, CATCHUP_DECLARED, CATCHUP_NONE)
+
 
 class IptvSimple:
     """Helper class to setup IPTV Simple"""
@@ -496,10 +505,34 @@ class IptvSimple:
         """Deactivate IPTV Simple"""
         kodiutils.jsonrpc(method="Addons.SetAddonEnabled", params={"addonid": IPTV_SIMPLE_ID, "enabled": False})
 
+    @staticmethod
+    def _catchup_mode():
+        """Return the configured catchup mode, defaulting to the historical one."""
+        mode = kodiutils.get_setting('catchup_mode', CATCHUP_ALL) or CATCHUP_ALL
+        if mode not in CATCHUP_MODES:
+            _LOGGER.warning('Unknown catchup_mode %r; using %s', mode, CATCHUP_ALL)
+            return CATCHUP_ALL
+        return mode
+
+    @staticmethod
+    def _catchup_attribute(channel, mode):
+        """Return the catchup attribute to add to one channel, if any.
+
+        ``declared`` only marks a channel whose provider announced a
+        ``catchup-source``. A raw M3U block is copied verbatim and keeps its
+        own attributes, so this only applies to JSON-STREAMS channels.
+        """
+        if mode == CATCHUP_NONE:
+            return ''
+        if mode == CATCHUP_DECLARED and not channel.get('catchup-source'):
+            return ''
+        return ' catchup="vod"'
+
     @classmethod
     def write_playlist(cls, channels):
         """Write playlist data, and return True when the file changed"""
         output_dir = kodiutils.addon_profile()
+        catchup_mode = cls._catchup_mode()
 
         # Make sure our output dir exists
         if not os.path.exists(output_dir):
@@ -532,7 +565,8 @@ class IptvSimple:
                         m3u8_data += ' group-title="{groups}"'.format(groups=';'.join(channel.get('group')))
                     if channel.get('radio'):
                         m3u8_data += ' radio="true"'
-                    m3u8_data += ' catchup="vod",{name}\n'.format(**channel)
+                    m3u8_data += cls._catchup_attribute(channel, catchup_mode)
+                    m3u8_data += ',{name}\n'.format(**channel)
                     if channel.get('kodiprops'):
                         for key, value in channel.get('kodiprops').items():
                             m3u8_data += '#KODIPROP:{key}={value}\n'.format(key=key, value=value)

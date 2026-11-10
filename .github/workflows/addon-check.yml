@@ -14,9 +14,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Omega is the Kodi 21 branch. Kodi 22 (Piers) exposes the same Python 3
-        # API, so the check runs against Omega until the checker supports Piers.
-        kodi-version: [ omega ]
+        # Kodi 21 (Omega) and Kodi 22 (Piers) are the two targets of the fork.
+        # The checker keys off the branch name in the official add-on repo.
+        kodi-version: [ omega, piers ]
     steps:
       - name: Check out ${{ github.sha }} from repository ${{ github.repository }}
         uses: actions/checkout@v4

@@ -1,5 +1,6 @@
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-yellow.svg)](https://opensource.org/licenses/GPL-3.0)
 [![Release](https://img.shields.io/github/v/release/zibaone/service.iptv.manager)](https://github.com/zibaone/service.iptv.manager/releases)
+[![CI](https://github.com/zibaone/service.iptv.manager/actions/workflows/ci.yml/badge.svg)](https://github.com/zibaone/service.iptv.manager/actions/workflows/ci.yml)
 
 # IPTV Manager
 This Service Add-on allows supported IPTV Add-ons to integrates their Live TV and Radio Channels in the Kodi TV integration.

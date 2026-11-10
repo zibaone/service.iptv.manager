@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased (2026-11-10)
+
+Downstream fork, refresh out of playback, pass diagnostics and configurable
+catchup:
+
+- Wait for Kodi to settle before the first refresh, and never start a pass
+  while a playback is running. A cold boot keeps loading the PVR and the
+  providers (upstream issue #88); a refresh started too early saw half a
+  channel list, and a pass during playback cut the stream (issue #89). The
+  refresh is postponed, flagged as pending and retried every 60 s until the
+  playback stops; the IPTV Simple restart keeps its own playback guard.
+- Write `state.json` in the add-on profile on every pass: timestamp, duration,
+  detected providers with their channel and programme counts, result
+  (`ok`/`partial`/`failed`), reason, `last_refreshed` and `retry_after`. A
+  partial or failed pass also shows a short, non-blocking notification, and the
+  log gets a one-line summary. Diagnosing a failed pass no longer means digging
+  into `kodi.log` blind.
+- Add the `catchup_mode` setting: `all` (default, the historical
+  `catchup="vod"` on every channel), `declared` (only a channel whose provider
+  announced a `catchup-source`) and `none`. A provider without an archive no
+  longer gets a replay entry that cannot play.
+- Repository cleanup: the add-on metadata now points at the fork,
+  `kodi-addon-checker` runs against Kodi 21 (Omega) and Kodi 22 (Piers), and
+  the README carries the fork CI badge.
+- 94 unit tests, `pylint` 10.00/10.
+
 ## v0.2.12 (2026-11-02)
 
 Downstream fork, IPTV Simple instance fix (measured on the Magicsee N5, Kodi 21.3):

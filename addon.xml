@@ -68,7 +68,7 @@ v0.2.3 (2021-02-04)
 - Support multiple groups for a channel.
 - Improvements for Kodi Matrix.
 - Update translations.</news>
-        <source>https://github.com/add-ons/service.iptv.manager</source>
+        <source>https://github.com/zibaone/service.iptv.manager</source>
         <assets>
             <icon>resources/icon.png</icon>
             <screenshot>resources/screenshot01.jpg</screenshot>

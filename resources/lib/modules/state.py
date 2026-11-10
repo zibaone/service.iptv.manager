@@ -10,6 +10,9 @@ import os
 _LOGGER = logging.getLogger(__name__)
 
 STATE_FILE = 'providers_state.json'
+# Diagnostic of the last pass, meant to be read without digging into kodi.log
+# (docs/02, F-08).
+DIAGNOSTIC_FILE = 'state.json'
 META_KEY = '_meta'
 MAX_FAILURES = 3
 # Backoff after a failed pass: 15 min, then 1 h, then 6 h (docs/02, F-03).
@@ -19,6 +22,22 @@ STATUS_OK = 'ok'
 STATUS_PARTIAL = 'partial'
 STATUS_DEGRADED = 'degraded'
 STATUS_FAILED = 'failed'
+
+# The diagnostic only exposes the three results of docs/02, F-08. A degraded
+# pass is a partial one that kept the previous files.
+DIAGNOSTIC_RESULTS = {
+    STATUS_OK: 'ok',
+    STATUS_PARTIAL: 'partial',
+    STATUS_DEGRADED: 'partial',
+    STATUS_FAILED: 'failed',
+}
+
+DIAGNOSTIC_REASONS = {
+    STATUS_OK: 'all providers answered',
+    STATUS_PARTIAL: 'a provider lost its channels or guide',
+    STATUS_DEGRADED: 'a provider lost its channels or guide; previous files kept',
+    STATUS_FAILED: 'no provider returned channels or guide',
+}
 
 
 def load(output_dir):
@@ -31,15 +50,47 @@ def load(output_dir):
     return data if isinstance(data, dict) else {}
 
 
-def save(output_dir, state):
-    """Write the state atomically, so a reader never sees a partial file."""
+def _write_json(output_dir, name, data):
+    """Write a JSON file atomically, so a reader never sees a partial file."""
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
-    path = os.path.join(output_dir, STATE_FILE)
+    path = os.path.join(output_dir, name)
     with open(path + '.tmp', 'w', encoding='utf-8') as fdesc:
-        json.dump(state, fdesc, indent=2, sort_keys=True)
+        json.dump(data, fdesc, indent=2, sort_keys=True)
         fdesc.write('\n')
     os.replace(path + '.tmp', path)
+
+
+def save(output_dir, state):
+    """Write the state atomically, so a reader never sees a partial file."""
+    _write_json(output_dir, STATE_FILE, state)
+
+
+def diagnostic(results, status, now, duration, last_refreshed, retry_after):
+    """Build the diagnostic of one pass (docs/02, F-08)."""
+    providers = []
+    for result in results:
+        providers.append({
+            'id': result.get('addon_id'),
+            'name': result.get('addon_name') or result.get('addon_id'),
+            'channels': result.get('channels') or 0,
+            'programs': result.get('programs') or 0,
+        })
+
+    return {
+        'timestamp': int(now),
+        'duration': round(max(0.0, duration), 3),
+        'providers': providers,
+        'result': DIAGNOSTIC_RESULTS.get(status, status),
+        'reason': DIAGNOSTIC_REASONS.get(status, ''),
+        'last_refreshed': int(last_refreshed or 0),
+        'retry_after': int(retry_after or 0),
+    }
+
+
+def save_diagnostic(output_dir, payload):
+    """Write state.json, the diagnostic of the last pass."""
+    _write_json(output_dir, DIAGNOSTIC_FILE, payload)
 
 
 def evaluate(results, previous):

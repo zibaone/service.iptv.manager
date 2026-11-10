@@ -19,7 +19,7 @@ import pytest
 from resources.lib import kodiutils
 from resources.lib.modules import state
 from resources.lib.modules.iptvsimple import IptvSimple
-from resources.lib.service import BackgroundService
+from resources.lib.service import FIRST_REFRESH_DELAY, REFRESH_RETRY_DELAY, BackgroundService
 
 
 @unittest.skipIf(sys.platform.startswith("win"), 'Skipping on Windows.')
@@ -28,16 +28,82 @@ class TestService(unittest.TestCase):
 
     def test_service_survives_a_failed_refresh(self):
         """A refresh that raises must not stop the loop (Kodi 22 Invalid setting type)."""
+        service = BackgroundService()
+        service._started_at = 0
         with mock.patch.object(BackgroundService, 'abortRequested', return_value=False), \
                 mock.patch.object(BackgroundService, 'waitForAbort', return_value=True), \
                 mock.patch.object(BackgroundService, '_is_refresh_required', return_value=True), \
+                mock.patch.object(BackgroundService, '_is_playing', return_value=False), \
                 mock.patch.object(IptvSimple, 'is_configured', return_value=True), \
                 mock.patch('resources.lib.service.Addon.refresh',
                            side_effect=RuntimeError('Invalid setting type')) as refresh:
             with self.assertLogs('resources.lib.service', level='ERROR'):
-                BackgroundService().run()
+                service.run()
 
         self.assertEqual(refresh.call_count, 1)
+
+    def test_first_refresh_waits_for_kodi_to_settle(self):
+        """A cold start must not refresh while the PVR and the providers load (issue #88)."""
+        service = BackgroundService()
+        service._started_at = 1000
+        with mock.patch.object(BackgroundService, '_is_refresh_required', return_value=True), \
+                mock.patch.object(BackgroundService, '_is_playing', return_value=False), \
+                mock.patch('resources.lib.service.time.time',
+                           return_value=1000 + FIRST_REFRESH_DELAY - 1), \
+                mock.patch('resources.lib.service.Addon.refresh') as refresh:
+            self.assertFalse(service._refresh_pass())
+
+        refresh.assert_not_called()
+
+    def test_first_refresh_deferred_while_playing(self):
+        """A playback in progress must not be cut by the first refresh (issues #88/#89)."""
+        service = BackgroundService()
+        service._started_at = 0
+        now = 1800000000
+
+        with mock.patch.object(BackgroundService, '_is_refresh_required', return_value=True), \
+                mock.patch.object(BackgroundService, '_is_playing', return_value=True), \
+                mock.patch('resources.lib.service.time.time', return_value=now), \
+                mock.patch('resources.lib.service.Addon.refresh') as refresh, \
+                mock.patch('resources.lib.service.IptvSimple.restart') as restart:
+            self.assertFalse(service._refresh_pass())
+
+            self.assertTrue(service.refresh_pending)
+            refresh.assert_not_called()
+            restart.assert_not_called()
+
+            # Still deferred before the retry delay, even once the playback stopped.
+            with mock.patch.object(BackgroundService, '_is_playing', return_value=False), \
+                    mock.patch('resources.lib.service.time.time',
+                               return_value=now + REFRESH_RETRY_DELAY - 1):
+                self.assertFalse(service._refresh_pass())
+            refresh.assert_not_called()
+
+            # Playback is over and the delay elapsed: the pass runs.
+            with mock.patch.object(BackgroundService, '_is_playing', return_value=False), \
+                    mock.patch('resources.lib.service.time.time',
+                               return_value=now + REFRESH_RETRY_DELAY):
+                self.assertTrue(service._refresh_pass())
+
+        refresh.assert_called_once()
+        self.assertFalse(service.refresh_pending)
+
+    def test_refresh_deferred_while_watching_tv(self):
+        """Pvr.IsPlayingTv also postpones the refresh, not only Player.HasVideo."""
+        service = BackgroundService()
+        service._started_at = 0
+
+        def playing(condition):
+            return condition == 'Pvr.IsPlayingTv'
+
+        with mock.patch.object(BackgroundService, '_is_refresh_required', return_value=True), \
+                mock.patch.object(kodiutils, 'get_cond_visibility', side_effect=playing), \
+                mock.patch('resources.lib.service.time.time', return_value=1800000000), \
+                mock.patch('resources.lib.service.Addon.refresh') as refresh:
+            self.assertFalse(service._refresh_pass())
+
+        self.assertTrue(service.refresh_pending)
+        refresh.assert_not_called()
 
     def test_is_refresh_required_waits_for_retry_after(self):
         """A failed pass sets the next attempt: the loop must not run before it."""

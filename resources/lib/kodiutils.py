@@ -89,6 +89,17 @@ def yesno_dialog(heading='', message='', nolabel=None, yeslabel=None, autoclose=
     return xbmcgui.Dialog().yesno(heading=heading, message=message, nolabel=nolabel, yeslabel=yeslabel, autoclose=autoclose)
 
 
+def notification(message, heading='', icon='info', time=5000, sound=False):
+    """Show a non-blocking Kodi notification.
+
+    Used to report a partial or failed pass without opening a dialog the user
+    has to dismiss (docs/02, F-08).
+    """
+    if not heading:
+        heading = addon_name()
+    xbmcgui.Dialog().notification(heading, message, icon, time, sound)
+
+
 class progress(xbmcgui.DialogProgress, object):  # pylint: disable=invalid-name,useless-object-inheritance
     """Show Kodi's Progress dialog"""
 

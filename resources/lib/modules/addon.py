@@ -62,6 +62,34 @@ def count_programs(epg):
     return 0
 
 
+def report_pass(output_dir, results, status, meta, started, finished):
+    """Write the diagnostic of a pass and report it (docs/02, F-08).
+
+    ``state.json`` is written on every pass, so a failure can be diagnosed
+    without digging into kodi.log. A partial or failed pass also raises a
+    short, non-blocking notification; the log gets a one-line summary.
+    """
+    duration = max(0.0, finished - started)
+    last_refreshed = int(finished) if status == state_module.STATUS_OK \
+        else kodiutils.get_setting_int('last_refreshed', 0)
+    payload = state_module.diagnostic(results, status, finished, duration, last_refreshed,
+                                      (meta or {}).get('retry_after'))
+    state_module.save_diagnostic(output_dir, payload)
+
+    channels = sum(result.get('channels') or 0 for result in results)
+    programs = sum(result.get('programs') or 0 for result in results)
+    _LOGGER.info('Pass %s in %.1f s: %d provider(s), %d channel(s), %d programme(s), retry_after=%s',
+                 payload['result'], duration, len(results), channels, programs, payload['retry_after'])
+
+    if payload['result'] == state_module.STATUS_OK:
+        return
+
+    if payload['result'] == state_module.STATUS_FAILED:
+        kodiutils.notification(kodiutils.localize(30708), icon='error')
+    else:
+        kodiutils.notification(kodiutils.localize(30707), icon='warning')
+
+
 class Addon:
     """Helper class for Addon communication"""
 
@@ -80,6 +108,7 @@ class Addon:
         channels = []
         epg = []
         results = []
+        started = time.time()
 
         if show_progress:
             progress = kodiutils.progress(message=kodiutils.localize(30703))  # Detecting IPTV add-ons...
@@ -89,17 +118,18 @@ class Addon:
         addons = cls.detect_iptv_addons()
         for index, addon in enumerate(addons):
             _LOGGER.info('Updating IPTV data for %s...', addon.addon_id)
+            addon_name = kodiutils.addon_name(addon.addon_obj)
 
             if progress:
                 # Fetching channels and guide of {addon}...
                 progress.update(int(100 * index / len(addons)),
-                                kodiutils.localize(30704).format(addon=kodiutils.addon_name(addon.addon_obj)))
+                                kodiutils.localize(30704).format(addon=addon_name))
 
             # Fetch channels
             provider_channels = addon.get_channels()
             channels.append(dict(
                 addon_id=addon.addon_id,
-                addon_name=kodiutils.addon_name(addon.addon_obj),
+                addon_name=addon_name,
                 channels=provider_channels,
             ))
 
@@ -112,6 +142,7 @@ class Addon:
             epg.append(provider_epg)
             results.append(dict(
                 addon_id=addon.addon_id,
+                addon_name=addon_name,
                 channels=count_channels(provider_channels),
                 programs=count_programs(provider_epg),
             ))
@@ -122,46 +153,47 @@ class Addon:
 
         # Refuse to replace good files with a degraded collection (docs/02, F-02).
         output_dir = kodiutils.addon_profile()
-        now = int(time.time())
+        now = time.time()
         previous = state_module.load(output_dir)
         status, new_state, may_write = state_module.evaluate(results, previous)
-        new_state[state_module.META_KEY] = state_module.record(previous, status, now)
+        meta = state_module.record(previous, status, int(now))
+        new_state[state_module.META_KEY] = meta
         state_module.save(output_dir, new_state)
 
         if not may_write:
             _LOGGER.warning('Pass is %s: keeping the previous playlist and guide', status)
             if show_progress:
                 progress.close()
-            return
-
-        # Write files
-        if show_progress:
-            progress.update(100, kodiutils.localize(30705))
-
-        playlist_changed = IptvSimple.write_playlist(channels)
-        epg_changed = IptvSimple.write_epg(epg, channels)
-
-        if not (playlist_changed or epg_changed):
-            # A pass that brought nothing new must not interrupt the PVR: the
-            # provider payloads are often identical, and the restart used to
-            # cost a PVR stop/start on every pass (Zero 3, 2026-10-26).
-            _LOGGER.info('Playlist and guide unchanged; IPTV Simple is left running')
-        elif kodiutils.get_setting_bool('iptv_simple_restart'):
-            if show_progress:
-                # Restart now.
-                IptvSimple.restart(True)
-            else:
-                # Try to restart now. We will schedule it if the user is watching TV.
-                IptvSimple.restart(False)
-
-        # Only a complete pass proves that the files are good.
-        if status == state_module.STATUS_OK:
-            kodiutils.set_setting_int('last_refreshed', int(time.time()))
         else:
-            _LOGGER.info('Pass is %s: last_refreshed not advanced', status)
+            if show_progress:
+                progress.update(100, kodiutils.localize(30705))
 
-        if show_progress:
-            progress.close()
+            playlist_changed = IptvSimple.write_playlist(channels)
+            epg_changed = IptvSimple.write_epg(epg, channels)
+
+            if not (playlist_changed or epg_changed):
+                # A pass that brought nothing new must not interrupt the PVR: the
+                # provider payloads are often identical, and the restart used to
+                # cost a PVR stop/start on every pass (Zero 3, 2026-10-26).
+                _LOGGER.info('Playlist and guide unchanged; IPTV Simple is left running')
+            elif kodiutils.get_setting_bool('iptv_simple_restart'):
+                if show_progress:
+                    # Restart now.
+                    IptvSimple.restart(True)
+                else:
+                    # Try to restart now. We will schedule it if the user is watching TV.
+                    IptvSimple.restart(False)
+
+            # Only a complete pass proves that the files are good.
+            if status == state_module.STATUS_OK:
+                kodiutils.set_setting_int('last_refreshed', int(now))
+            else:
+                _LOGGER.info('Pass is %s: last_refreshed not advanced', status)
+
+            if show_progress:
+                progress.close()
+
+        report_pass(output_dir, results, status, meta, started, now)
 
     @staticmethod
     def detect_iptv_addons():

@@ -13,6 +13,7 @@ from unittest import mock
 
 from resources.lib.modules.addon import Addon
 from resources.lib.modules.iptvsimple import IptvSimple
+from resources.lib.modules.state import DIAGNOSTIC_FILE
 
 PROFILE = None
 
@@ -46,6 +47,11 @@ def read_state():
         return json.load(handle)
 
 
+def read_diagnostic():
+    with open(os.path.join(PROFILE, DIAGNOSTIC_FILE), 'r', encoding='utf-8') as handle:
+        return json.load(handle)
+
+
 class RefreshGuardTest(unittest.TestCase):
     """A pass that loses a provider must not overwrite the playlist"""
 
@@ -58,6 +64,7 @@ class RefreshGuardTest(unittest.TestCase):
         self.write_playlist = mock.Mock()
         self.write_epg = mock.Mock()
         self.set_setting = mock.Mock()
+        self.notify = mock.Mock()
 
     def tearDown(self):
         self.tempdir.cleanup()
@@ -73,6 +80,9 @@ class RefreshGuardTest(unittest.TestCase):
                 mock.patch('resources.lib.modules.addon.kodiutils.addon_profile', return_value=PROFILE), \
                 mock.patch('resources.lib.modules.addon.kodiutils.addon_name', return_value='Provider'), \
                 mock.patch('resources.lib.modules.addon.kodiutils.get_setting_bool', return_value=restart_enabled), \
+                mock.patch('resources.lib.modules.addon.kodiutils.get_setting_int', return_value=0), \
+                mock.patch('resources.lib.modules.addon.kodiutils.localize', side_effect=lambda key: 'msg %s' % key), \
+                mock.patch('resources.lib.modules.addon.kodiutils.notification', self.notify), \
                 mock.patch('resources.lib.modules.addon.kodiutils.set_setting_int', self.set_setting):
             Addon.refresh()
 
@@ -227,6 +237,45 @@ class RefreshGuardTest(unittest.TestCase):
         self.assertEqual(meta['failures'], 0)
         self.assertEqual(meta['retry_after'], 0)
         self.assertEqual(meta['last_attempt'], now)
+
+    def test_diagnostic_after_a_complete_pass(self):
+        """state.json records an ok pass: counts, result, date, no retry (F-08)."""
+        now = 1800000000
+        provider = FakeProvider('a', [{'name': 'A', 'stream': 'http://a'}], {'a': [{'title': 'T'}]})
+
+        with mock.patch('resources.lib.modules.addon.time.time', return_value=now):
+            self.refresh([provider])
+
+        diagnostic = read_diagnostic()
+        self.assertEqual(diagnostic['result'], 'ok')
+        self.assertEqual(diagnostic['timestamp'], now)
+        self.assertEqual(diagnostic['duration'], 0.0)
+        self.assertEqual(diagnostic['providers'], [
+            {'id': 'a', 'name': 'Provider', 'channels': 1, 'programs': 1},
+        ])
+        self.assertEqual(diagnostic['last_refreshed'], now)
+        self.assertEqual(diagnostic['retry_after'], 0)
+        self.assertTrue(diagnostic['reason'])
+        self.notify.assert_not_called()
+
+    def test_diagnostic_after_a_failed_pass(self):
+        """state.json records a failed pass, its reason and the next attempt (F-08)."""
+        now = 1800000000
+
+        with mock.patch('resources.lib.modules.addon.time.time', return_value=now):
+            self.refresh([FakeProvider('a', [], {})])
+
+        diagnostic = read_diagnostic()
+        self.assertEqual(diagnostic['result'], 'failed')
+        self.assertEqual(diagnostic['timestamp'], now)
+        self.assertEqual(diagnostic['providers'], [
+            {'id': 'a', 'name': 'Provider', 'channels': 0, 'programs': 0},
+        ])
+        self.assertEqual(diagnostic['last_refreshed'], 0)
+        self.assertEqual(diagnostic['retry_after'], now + 15 * 60)
+        self.assertIn('no provider', diagnostic['reason'])
+        self.assertEqual(self.notify.call_count, 1)
+        self.assertIn('30708', str(self.notify.call_args))
 
 
 if __name__ == '__main__':

@@ -12,6 +12,9 @@ from unittest import mock
 
 from resources.lib import kodiutils
 from resources.lib.modules.iptvsimple import (
+    CATCHUP_ALL,
+    CATCHUP_DECLARED,
+    CATCHUP_NONE,
     IPTV_SIMPLE_EPG,
     IPTV_SIMPLE_PLAYLIST,
     PVR_START_CHECKS,
@@ -612,6 +615,62 @@ class UnchangedCollectionTest(unittest.TestCase):
 
         self.assertEqual(os.stat(path).st_mtime_ns, before)
         self.assertFalse(os.path.exists(path + '.tmp'))
+
+
+class CatchupModeTest(unittest.TestCase):
+    """catchup_mode drives the attribute written in the playlist (docs/02, F-10)."""
+
+    def setUp(self):
+        self.tempdir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
+        self.profile = self.tempdir.name + os.sep
+        self.channels = [{
+            'addon_id': 'a',
+            'addon_name': 'A',
+            'channels': [
+                {'name': 'Plain', 'stream': 'http://plain'},
+                {'name': 'Replay', 'stream': 'http://replay',
+                 'catchup-source': 'http://replay?start={start}'},
+            ],
+        }]
+
+    def tearDown(self):
+        self.tempdir.cleanup()
+
+    def extinf_lines(self, mode):
+        """Write the playlist for one mode and return its EXTINF lines."""
+        with mock.patch('resources.lib.modules.iptvsimple.kodiutils.addon_profile',
+                        return_value=self.profile), \
+                mock.patch('resources.lib.modules.iptvsimple.kodiutils.get_setting',
+                           return_value=mode):
+            IptvSimple.write_playlist(self.channels)
+
+        with open(os.path.join(self.profile, IPTV_SIMPLE_PLAYLIST), 'r', encoding='utf-8') as handle:
+            return [line for line in handle.read().splitlines() if line.startswith('#EXTINF')]
+
+    def test_all_keeps_the_historical_catchup(self):
+        """`all` marks every channel, as the add-on always did."""
+        lines = self.extinf_lines(CATCHUP_ALL)
+
+        self.assertTrue(all('catchup="vod"' in line for line in lines))
+
+    def test_declared_only_marks_channels_with_a_catchup_source(self):
+        """`declared` trusts the provider: no source, no replay in the guide."""
+        lines = self.extinf_lines(CATCHUP_DECLARED)
+
+        self.assertNotIn('catchup="vod"', lines[0])
+        self.assertIn('catchup="vod"', lines[1])
+
+    def test_none_removes_the_attribute(self):
+        """`none` never advertises a catchup the provider cannot serve."""
+        lines = self.extinf_lines(CATCHUP_NONE)
+
+        self.assertFalse(any('catchup' in line for line in lines))
+
+    def test_missing_setting_keeps_the_historical_behaviour(self):
+        """A profile written before catchup_mode existed behaves like `all`."""
+        lines = self.extinf_lines(None)
+
+        self.assertTrue(all('catchup="vod"' in line for line in lines))
 
 
 if __name__ == '__main__':

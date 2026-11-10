@@ -42,6 +42,14 @@ msgctxt "#30706"
 msgid "This program isn't available to play."
 msgstr "Το πρόγραμμα αυτό είναι μη διαθέσιμο για αναπαραγωγή."
 
+msgctxt "#30707"
+msgid "IPTV refresh incomplete: some providers returned no data. See state.json."
+msgstr ""
+
+msgctxt "#30708"
+msgid "IPTV refresh failed: no provider returned data. See state.json."
+msgstr ""
+
 # SETTINGS
 msgctxt "#30800"
 msgid "Channels"
@@ -97,4 +105,8 @@ msgstr ""
 
 msgctxt "#30884"
 msgid "Open Kodi Logfile Uploader…"
+msgstr ""
+
+msgctxt "#30825"
+msgid "Catchup for the generated playlist"
 msgstr ""
