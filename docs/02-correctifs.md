@@ -63,23 +63,52 @@ mais trois défauts de terrain sont apparus, corrigés en 0.2.11 (`d7a5fc9`) :
 
 Tests : 78 unitaires verts, pylint 10.00/10.
 
+## État après la passe du 2026-11-10 (0.3.0, locale)
+
+Passe de code seule : aucun banc, aucune box. Quatre fiches sont traitées dans
+le commit `780fc4d` ; les tests passent de 85 à 94, `pylint` reste à 10.00/10.
+
+- `F-07` — la première passe attend 20 s (`FIRST_REFRESH_DELAY`) puis ne démarre
+  jamais pendant une lecture : `Player.HasVideo` et les trois `Pvr.IsPlaying*`
+  posent `refresh_pending` et une nouvelle tentative à 60 s
+  (`REFRESH_RETRY_DELAY`). Le restart d'IPTV Simple garde sa garde de lecture.
+- `F-08` — `state.json` est écrit à chaque passe, y compris quand les fichiers
+  sont conservés ; une passe partielle ou en échec lève une notification non
+  bloquante et le journal reçoit un résumé d'une ligne.
+- `F-09` — le reliquat de `b13b47d` est soldé : `addon.xml` pointe le fork,
+  `kodi-addon-checker` tourne sur `omega` et `piers`, badge CI du fork. **Tags
+  et release non faits** : ils exigent un accord explicite.
+- `F-10` — `catchup_mode` (`all` par défaut, `declared`, `none`) est appliqué
+  aux chaînes JSON. Limite à connaître : un fournisseur qui renvoie du **M3U
+  brut** est recopié tel quel (charte §4), donc ses attributs de replay
+  survivent aux trois modes ; `declared` ne diffère de `none` que si un
+  fournisseur JSON publie un `catchup-source`, qui n'est pas au contrat
+  JSON-STREAMS v1.
+
+`docs/04-roadmap.md` range aussi `#95` et `#11` dans la 0.3.0 : ils ne sont pas
+traités ici, la version est donc partielle au regard de la feuille de route.
+
+Anomalie de tags relevée pendant la passe : `v0.2.9` pointe `266512e`, hors de
+l'ascendance de `master` (branche `release/0.2.9`) ; `v0.2.5` n'existe pas, le
+fork n'a jamais tagué cette base amont.
+
 ## Tableau de synthèse
 
-| ID | Priorité | Statut au 25/10/2026 | Version cible |
+| ID | Priorité | Statut au 2026-11-10 | Version cible |
 |---|---|---|---|
 | F-01 | P0 | **Corrigé** (`e45e2d7`) — vérification sur box à faire | 0.2.8 |
 | F-05 | P1 | **Corrigé** (`5938c20`) | 0.2.8 |
 | F-06 | P1 | **Corrigé** (`1c9ce2e`) | 0.2.8 |
-| F-09 | P1 | **Corrigé** (`b13b47d`) — tags `v0.2.6`/`v0.2.7` créés localement, à pousser | 0.2.8 |
+| F-09 | P1 | **Corrigé** (`b13b47d`, `780fc4d`) — tags et release à créer sur accord explicite | 0.3.0 |
 | F-11 | P0 | **Corrigé** (`8ed7430`, `e5ca547`) — **amendé le 26/10** (`d7a5fc9`) après mesure sur Kodi 21 | 0.2.8 / 0.2.11 |
 | F-02 | P0 | **Corrigé** (`d7bbdc8`), publié en 0.2.9 | 0.2.9 |
 | F-03 | P0 | **Corrigé** (`e4f0e39`), publié en 0.2.9 | 0.2.9 |
 | F-04 | P0/P1 | **Corrigé** (`9c67c48`), publié en 0.2.10 | 0.2.10 |
 | F-12 | P0 | **Corrigé** (`d7a5fc9`) — mesuré sur Zero 3 | 0.2.11 |
 | F-13 | P0 | **Corrigé** (`d7a5fc9`) — mesuré sur Zero 3 | 0.2.11 |
-| F-07 | P1 | Non commencé | 0.3.0 |
-| F-08 | P1 | Non commencé | 0.3.0 |
-| F-10 | P2 | Non commencé | 0.3.0 |
+| F-07 | P1 | **Corrigé** (`780fc4d`) — vérification sur box à faire (`banc: plus tard`) | 0.3.0 |
+| F-08 | P1 | **Corrigé** (`780fc4d`) | 0.3.0 |
+| F-10 | P2 | **Corrigé** (`780fc4d`) — `declared` inerte pour un JSON sans `catchup-source` | 0.3.0 |
 
 ---
 
@@ -361,6 +390,10 @@ lecture (F-01).
 **Acceptation.** Démarrage box en lecture → aucun refresh ni restart ; à
 l'arrêt, refresh normal et playlist complète.
 
+**État (2026-11-10).** Corrigé (`780fc4d`) : délai de 20 s, `refresh_pending` et
+réessai à 60 s, quatre tests dont `test_first_refresh_deferred_while_playing`.
+L'acceptation complète exige une box (`banc: plus tard`).
+
 ---
 
 ## F-08 — Diagnostic et notification (P1)
@@ -375,6 +408,10 @@ Résumé d'une ligne dans le journal.
 
 **Acceptation.** Le diagnostic d'une panne ne demande plus de fouiller
 `kodi.log` à l'aveugle.
+
+**État (2026-11-10).** Corrigé (`780fc4d`) : `state.json` écrit à chaque passe,
+notification sur `partial`/`failed`, résumé d'une ligne. Tests
+`test_diagnostic_after_a_complete_pass` et `test_diagnostic_after_a_failed_pass`.
 
 ---
 
@@ -402,6 +439,12 @@ l'amont dans le `README.md`.
 **Acceptation.** Zip installable sans `postPatch` ; CI verte ; tag `vX.Y.Z`
 correspondant exactement au commit livré.
 
+**État (2026-11-10).** Le constat ci-dessus décrit l'amont : `b13b47d` avait déjà
+livré l'essentiel. Reste soldé par `780fc4d` (`<source>` du fork, addon-checker
+`omega` + `piers`, badge CI). **Non fait** : les tags et la release, qui
+demandent un accord explicite ; `v0.2.5` n'a jamais existé coté fork et `v0.2.9`
+pointe hors de l'ascendance de `master`.
+
 ---
 
 ## F-10 — Réglage du catchup (P2)
@@ -416,6 +459,13 @@ un replay qui échoue.
 `catchup-source` dans son M3U brut), `none`.
 
 **Tests.** Playlist générée dans les trois modes.
+
+**État (2026-11-10).** Corrigé (`780fc4d`) : réglage `catchup_mode` (30825) et
+`IptvSimple._catchup_attribute()`, quatre tests (les trois modes et le repli sur
+`all` quand le réglage manque). Limite : le M3U brut est recopié tel quel, donc
+`none` n'y retire pas les attributs de replay, et `declared` y est sans effet ;
+pour un fournisseur JSON, `declared` ne se distingue de `none` que s'il publie
+un `catchup-source` hors contrat JSON-STREAMS v1.
 
 ---
 
