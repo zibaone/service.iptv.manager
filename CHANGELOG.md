@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (2026-11-10)
+## v0.3.0 (2026-11-10)
 
 Downstream fork, refresh out of playback, pass diagnostics and configurable
 catchup:
@@ -17,10 +17,12 @@ catchup:
   partial or failed pass also shows a short, non-blocking notification, and the
   log gets a one-line summary. Diagnosing a failed pass no longer means digging
   into `kodi.log` blind.
-- Add the `catchup_mode` setting: `all` (default, the historical
-  `catchup="vod"` on every channel), `declared` (only a channel whose provider
-  announced a `catchup-source`) and `none`. A provider without an archive no
-  longer gets a replay entry that cannot play.
+- Add the `catchup_mode` setting for the attributes the service adds to the
+  generated playlist: `all` (default, the historical `catchup="vod"` on every
+  channel), `declared` (only a channel that declares a `catchup-source`) and
+  `none`. A JSON provider without an archive can therefore stop advertising a
+  replay that cannot play. Raw M3U payloads are still copied verbatim, so the
+  replay attributes they carry survive all three modes.
 - Repository cleanup: the add-on metadata now points at the fork,
   `kodi-addon-checker` runs against Kodi 21 (Omega) and Kodi 22 (Piers), and
   the README carries the fork CI badge.
