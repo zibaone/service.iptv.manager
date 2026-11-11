@@ -109,6 +109,7 @@ fork n'a jamais tagué cette base amont.
 | F-07 | P1 | **Corrigé** (`780fc4d`) — vérification sur box à faire (`banc: plus tard`) | 0.3.0 |
 | F-08 | P1 | **Corrigé** (`780fc4d`) | 0.3.0 |
 | F-10 | P2 | **Corrigé** (`780fc4d`) — `declared` inerte pour un JSON sans `catchup-source` | 0.3.0 |
+| F-14 | P0 | **Corrigé** — payload XMLTV de 69 Mo refusé par le plafond de 64 Mio, fournisseur abandonné sans échec compté | 0.3.1 |
 
 ---
 
@@ -620,3 +621,28 @@ Simple is left running` et le PVR ne s'arrête pas.
 **Risque.** Un redémarrage volontaire d'IPTV Simple n'est plus obtenu par une
 passe forcée sans changement ; il reste disponible par le réglage de l'addon
 (`Addons.SetAddonEnabled`) ou un redémarrage de Kodi.
+
+## F-14 — Un EPG de 69 Mo était refusé par le plafond de lecture (P0)
+
+**Symptôme.** Sur la Zero 3, `providers_state.json` affichait
+`plugin.video.xtream: channels 4600, failures 0, programs 0` : le fournisseur
+livrait ses chaînes mais **aucun programme**, et sans erreur comptée.
+
+**Cause.** `MAX_REPLY_SIZE` valait `64 * 1024 * 1024`. Le XMLTV bulk du panneau
+pèse **69 Mo** (15 429 chaînes, 213 828 programmes) et la réponse JSON est plus
+volumineuse encore : la lecture de la socket levait
+`Reply from plugin.video.xtream is larger than 67108864 bytes`, et l'exception
+abandonnait le fournisseur **sans incrémenter `failures`** — d'où un diagnostic
+muet.
+
+**Correctif.** Deux volets.
+1. Côté fournisseur (`plugin.video.xtream`), le XMLTV est élagué aux chaînes
+   réellement présentes dans la playlist et à une fenêtre J-1 → J+3, avec un
+   cache du résultat à côté du brut : le payload passe de 69 Mo à quelques Mo.
+2. Côté service, le plafond passe à **256 MiB** pour redevenir un garde-fou
+   contre un fournisseur emballé, pas un budget de données.
+
+**Vérification.** `pytest tests/test_epg_filter.py` (7 cas) couvre l'élagage :
+chaînes hors playlist, bornes J-1/J+3, blocs restés entiers, sortie sans
+enveloppe `<tv>`, groupes exclus. `test_budget_covers_a_full_xtream_epg`
+verrouille le plafond.

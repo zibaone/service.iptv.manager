@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.1 (2026-11-11)
+
+- Raise the reply size guard from 64 MiB to 256 MiB (F-14). An Xtream panel
+  ships ~69 MB of XMLTV for 15 429 channels while the playlist carries a
+  fraction of them: the guard rejected the payload, the provider was dropped
+  and `providers_state.json` reported `programs: 0` with no failure counted.
+  The ceiling stays a runaway guard — the addon side now prunes the payload to
+  the playlist channels before answering.
+
 ## v0.3.0 (2026-11-10)
 
 Downstream fork, refresh out of playback, pass diagnostics and configurable

@@ -128,5 +128,17 @@ class AddonSocketTest(unittest.TestCase):
         self.assertIn('Something went wrong', str(context.exception))
 
 
+class ReplyBudgetTest(unittest.TestCase):
+    """The size guard must stay far above a real panel payload (F-14)."""
+
+    def test_budget_covers_a_full_xtream_epg(self):
+        """An Xtream panel ships ~69 MB of XMLTV: 64 MiB rejected it silently."""
+        self.assertGreater(addon_module.MAX_REPLY_SIZE, 100 * 1024 * 1024)
+
+    def test_budget_still_guards_against_a_runaway_provider(self):
+        """Raising the ceiling must not turn the guard off."""
+        self.assertLess(addon_module.MAX_REPLY_SIZE, 1024 * 1024 * 1024)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -24,7 +24,12 @@ EPG_VERSION = 1
 # A provider that accepts the connection but never sends anything must not block
 # the whole refresh (see docs/02-correctifs.md, F-05).
 READ_TIMEOUT = 120
-MAX_REPLY_SIZE = 64 * 1024 * 1024
+# A guard against a runaway provider, not a data budget: an Xtream panel ships
+# ~69 MB of XMLTV for 15 429 channels while the playlist carries a fraction of
+# them, and the addon now prunes to the playlist channels before answering
+# (F-14). Keep the ceiling far above any legitimate payload so the guard only
+# fires on a real runaway.
+MAX_REPLY_SIZE = 256 * 1024 * 1024
 
 
 def update_qs(url, **params):
