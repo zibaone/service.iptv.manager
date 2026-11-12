@@ -60,6 +60,13 @@ def count_programs(epg):
     """Count the programs of a provider payload without materializing it."""
     if isinstance(epg, xmltv.RawXmltv):
         return epg.count('<programme')
+    if isinstance(epg, str):
+        # A provider may answer with raw XMLTV instead of JSON-EPG (Xtream
+        # serves its bulk payload that way). The writer already handles the
+        # string; only the counter used to miss it, so providers_state.json
+        # reported `programs: 0` for a provider whose programmes were in the
+        # guide.
+        return epg.count('<programme')
     if isinstance(epg, dict):
         return sum(len(items) for items in epg.values())
     if isinstance(epg, (list, tuple)):

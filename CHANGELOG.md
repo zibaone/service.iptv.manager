@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.2 (2026-11-12)
+
+- Count programmes for providers that answer with **raw XMLTV** instead of
+  JSON-EPG. `count_programs()` only recognised a `RawXmltv` wrapper or a dict,
+  so Xtream — which sends its bulk payload as a string — was reported as
+  `programs: 0` in `providers_state.json` while its programmes were in the
+  guide. The diagnostic now tells the truth.
+
 ## v0.3.1 (2026-11-11)
 
 - Raise the reply size guard from 64 MiB to 256 MiB (F-14). An Xtream panel

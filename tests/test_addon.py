@@ -153,5 +153,27 @@ class TestRetry(unittest.TestCase):
             self.addon._get_data_from_addon('http://provider/channels')
 
 
+class CountProgramsTest(unittest.TestCase):
+    """The diagnostic must count every payload shape providers answer with."""
+
+    def test_counts_raw_xmltv_string(self):
+        """Xtream answers with raw XMLTV: the count is what the guide shows."""
+        payload = (
+            '<channel id="kept.fr">\n<display-name>Kept</display-name>\n</channel>\n'
+            '<programme start="20261111100000 +0000" stop="20261111110000 +0000" channel="kept.fr">\n'
+            '<title>A</title>\n</programme>\n'
+            '<programme start="20261111110000 +0000" stop="20261111120000 +0000" channel="kept.fr">\n'
+            '<title>B</title>\n</programme>\n'
+        )
+        self.assertEqual(addon_module.count_programs(payload), 2)
+
+    def test_counts_json_epg_dict(self):
+        payload = {'channel-a': [{'title': 'A'}, {'title': 'B'}], 'channel-b': [{'title': 'C'}]}
+        self.assertEqual(addon_module.count_programs(payload), 3)
+
+    def test_unknown_shape_counts_nothing(self):
+        self.assertEqual(addon_module.count_programs(None), 0)
+
+
 if __name__ == '__main__':
     unittest.main()
